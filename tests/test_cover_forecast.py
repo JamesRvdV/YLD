@@ -21,30 +21,35 @@ class CoverForecastTest(unittest.TestCase):
                 sys.modules[spec.name] = module
                 spec.loader.exec_module(module)
 
-                automatic = module.plan(module.PlanInput())
+                module.issue_invite("owner@example.com", workspace_name="Forecast Test", send=False)
+                with module.db() as conn:
+                    workspace_id = conn.execute("SELECT id FROM workspaces").fetchone()[0]
+                user = {"workspace_id": workspace_id}
+
+                automatic = module.plan(module.PlanInput(), user)
                 self.assertEqual(automatic["cover_source"], "forecast")
                 self.assertEqual(automatic["covers"], automatic["forecast_covers"])
                 self.assertGreaterEqual(automatic["cover_history_days"], 14)
 
                 with module.db() as conn:
-                    days = [row[0] for row in conn.execute("SELECT DISTINCT day FROM service_history ORDER BY day DESC LIMIT 13")]
+                    days = [row[0] for row in conn.execute("SELECT DISTINCT day FROM workspace_history WHERE workspace_id=? ORDER BY day DESC LIMIT 13", (workspace_id,))]
                     placeholders = ",".join("?" for _ in days)
-                    conn.execute(f"DELETE FROM service_history WHERE day NOT IN ({placeholders})", days)
+                    conn.execute(f"DELETE FROM workspace_history WHERE workspace_id=? AND day NOT IN ({placeholders})", [workspace_id, *days])
 
                 with self.assertRaises(HTTPException) as caught:
-                    module.plan(module.PlanInput())
+                    module.plan(module.PlanInput(), user)
                 self.assertEqual(caught.exception.status_code, 409)
                 self.assertEqual(caught.exception.detail["code"], "covers_needed")
                 self.assertEqual(caught.exception.detail["service_days"], 13)
 
-                manual = module.plan(module.PlanInput(covers=75))
+                manual = module.plan(module.PlanInput(covers=75), user)
                 self.assertEqual(manual["cover_source"], "manual")
                 self.assertEqual(manual["covers"], 75)
 
-                extra_day = (date.today() - timedelta(days=90)).isoformat()
+                extra_day = (module.local_today() - timedelta(days=90)).isoformat()
                 with module.db() as conn:
-                    conn.execute("INSERT INTO service_history VALUES (?,?,?,?,?,?)", (extra_day, "short-rib", 15, 18, 3, 77))
-                automatic = module.plan(module.PlanInput())
+                    conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers) VALUES (?,?,?,?,?,?,?)", (workspace_id, extra_day, "short-rib", 15, 18, 3, 77))
+                automatic = module.plan(module.PlanInput(), user)
                 self.assertEqual(automatic["cover_source"], "forecast")
                 self.assertEqual(automatic["cover_history_days"], 14)
             finally:

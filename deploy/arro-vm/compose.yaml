@@ -1,0 +1,41 @@
+name: yld
+
+services:
+  api:
+    image: yld:pilot-20260926
+    container_name: yld-api
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 384m
+    cpus: "0.5"
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,nosuid,noexec,size=16m
+    env_file:
+      - .env
+    environment:
+      YLD_DB_PATH: /data/yld.db
+    volumes:
+      - ./data:/data
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  edge:
+    external: true
+    name: arro-edge

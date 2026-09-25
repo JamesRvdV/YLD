@@ -1,13 +1,14 @@
-import React, { FormEvent, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './style.css'
 import './product.css'
 import ProductDashboard from './ProductDashboard'
 import LegalPage, { LegalFooter, type LegalPage as LegalScreen } from './LegalPages'
+import { AcceptInvite, loadSession, Login, type SessionUser } from './AuthPages'
 
-type Screen='landing'|'how'|'pricing'|'login'|'dashboard'|LegalScreen
-const screenForPath=():Screen=>({"/":"landing","/how-it-works":"how","/pricing":"pricing","/login":"login","/dashboard":"dashboard","/privacy":"privacy","/terms":"terms","/cookies":"cookies","/billing":"billing"}[window.location.pathname] as Screen)||'landing'
-const pathForScreen:Record<Screen,string>={landing:'/',how:'/how-it-works',pricing:'/pricing',login:'/login',dashboard:'/dashboard',privacy:'/privacy',terms:'/terms',cookies:'/cookies',billing:'/billing'}
+type Screen='landing'|'how'|'pricing'|'login'|'dashboard'|'invite'|LegalScreen
+const screenForPath=():Screen=>({"/":"landing","/how-it-works":"how","/pricing":"pricing","/login":"login","/dashboard":"dashboard","/invite":"invite","/privacy":"privacy","/terms":"terms","/cookies":"cookies","/billing":"billing"}[window.location.pathname] as Screen)||'landing'
+const pathForScreen:Record<Screen,string>={landing:'/',how:'/how-it-works',pricing:'/pricing',login:'/login',dashboard:'/dashboard',invite:'/invite',privacy:'/privacy',terms:'/terms',cookies:'/cookies',billing:'/billing'}
 
 
 function Landing({onLogin,onPricing,onHow}:{onLogin:()=>void;onPricing:()=>void;onHow:()=>void}) {
@@ -24,12 +25,12 @@ function Landing({onLogin,onPricing,onHow}:{onLogin:()=>void;onPricing:()=>void;
 
 function HowItWorks({onBack,onLogin,onPricing}:{onBack:()=>void;onLogin:()=>void;onPricing:()=>void}){const steps=[['01','SET THE ROOM','Start with your covers and tell YLD whether service looks quiet, normal, or busy.'],['02','MAKE THE CALL','YLD reads your historical sales and gives every dish a clear prep quantity.'],['03','LOG THE ACTUAL','Record what you made and sold. YLD improves for the next service.']];return <main className="how-page"><header className="pricing-nav"><button className="brand" onClick={onBack}>YLD<span>.</span></button><div><button onClick={onPricing}>PRICING</button><button onClick={onLogin}>LOG IN ↗</button></div></header><section className="how-intro"><span>( HOW IT WORKS )</span><h1>A BETTER CALL,<br/>BEFORE <em>SERVICE.</em></h1><p>A simple three-step system for calm, confident prep.</p></section><section className="how-steps">{steps.map(([number,title,copy])=><article key={number}><span>{number}</span><h2>{title}</h2><p>{copy}</p><b>→</b></article>)}</section><section className="how-close"><p>Less guessing at the pass. More focus in the kitchen.</p><button onClick={onLogin}>OPEN YOUR PLAN <span>→</span></button></section></main>}
 
-function Pricing({onBack,onLogin}:{onBack:()=>void;onLogin:()=>void}){const plans=[['SERVICE','49','Proposed for one focused kitchen.','Daily prep plans','Demand adjustments','Actuals logging'],['KITCHEN','119','Proposed for a team running every service.','Everything in Service','Unlimited team members','Weekly performance view'],['GROUP','CUSTOM','Proposed for operators with more than one room.','Everything in Kitchen','Multi-site view','Dedicated onboarding']];return <main className="pricing-page"><header className="pricing-nav"><button className="brand" onClick={onBack}>YLD<span>.</span></button><div><button onClick={onBack}>HOME</button><button onClick={onLogin}>LOG IN ↗</button></div></header><section className="pricing-intro"><span>( PROPOSED PRICING / NZD )</span><h1>PAY FOR<br/>LESS <em>WASTE.</em></h1><p>These plans are a preview. YLD is currently a free demo; paid subscriptions and trials are not available yet.</p></section><section className="price-grid">{plans.map(([name,price,description,...items],index)=><article key={name} className={index===1?'featured':''}><div className="plan-number">0{index+1}</div><h2>{name}</h2><p>{description}</p><strong>{price==='CUSTOM'?price:<><small>$</small>{price}<small>/ MO</small></>}</strong><ul>{items.map(item=><li key={item}>{item}</li>)}</ul><button onClick={onLogin}>TRY THE DEMO <span>→</span></button></article>)}</section><section className="pricing-note"><span>NO PAYMENT TAKEN</span><p>Prices and features may change before launch. See our <a href="/billing">billing policy</a> for the current status.</p></section></main>}
-
-function Login({onDone,onBack}:{onDone:()=>void;onBack:()=>void}) { const [email,setEmail]=useState('owner@yld.local');const [password,setPassword]=useState('YLDdemo!2026');const [loginError,setLoginError]=useState('');const [submitting,setSubmitting]=useState(false);const submit=async(event:FormEvent)=>{event.preventDefault();setSubmitting(true);setLoginError('');try{const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});if(!response.ok)throw new Error('Incorrect email or password.');onDone()}catch(cause){setLoginError(cause instanceof Error?cause.message:'Could not log in.')}finally{setSubmitting(false)}};return <main className="auth-page"><button className="auth-brand" onClick={onBack}>YLD<span>.</span></button><div className="auth-card"><div className="auth-kicker">WELCOME BACK</div><h1>MAKE A<br/><em>better call.</em></h1><p>Demo account is ready to use.</p><form onSubmit={event=>void submit(event)}><label>WORK EMAIL<input required type="email" value={email} onChange={event=>setEmail(event.target.value)}/></label><label>PASSWORD<input required type="password" value={password} onChange={event=>setPassword(event.target.value)}/></label>{loginError&&<div className="error">{loginError}</div>}<button className="auth-submit" disabled={submitting}>{submitting?'LOGGING IN…':'LOG IN'} <span>→</span></button></form><p className="auth-legal">This is a shared demo. Use sample data only. Read our <a href="/privacy">Privacy policy</a> and <a href="/terms">Terms of use</a>.</p><button className="back-link" onClick={onBack}>← BACK TO YLD</button></div><div className="auth-aside"><p>PREP WITH<br/><em> PURPOSE.</em></p><span>YLD / 2026</span></div></main> }
+function Pricing({onBack,onLogin}:{onBack:()=>void;onLogin:()=>void}){const plans=[['SERVICE','49','Proposed for one focused kitchen.','Daily prep plans','Demand adjustments','Actuals logging'],['KITCHEN','119','Proposed for a team running every service.','Everything in Service','Unlimited team members','Weekly performance view'],['GROUP','CUSTOM','Proposed for operators with more than one room.','Everything in Kitchen','Multi-site view','Dedicated onboarding']];return <main className="pricing-page"><header className="pricing-nav"><button className="brand" onClick={onBack}>YLD<span>.</span></button><div><button onClick={onBack}>HOME</button><button onClick={onLogin}>LOG IN ↗</button></div></header><section className="pricing-intro"><span>( PROPOSED PRICING / NZD )</span><h1>PAY FOR<br/>LESS <em>WASTE.</em></h1><p>These plans are a preview. YLD is currently an invite-only pilot; online subscriptions and trials are not available yet.</p></section><section className="price-grid">{plans.map(([name,price,description,...items],index)=><article key={name} className={index===1?'featured':''}><div className="plan-number">0{index+1}</div><h2>{name}</h2><p>{description}</p><strong>{price==='CUSTOM'?price:<><small>$</small>{price}<small>/ MO</small></>}</strong><ul>{items.map(item=><li key={item}>{item}</li>)}</ul><button onClick={onLogin}>INVITED? OPEN DEMO <span>→</span></button></article>)}</section><section className="pricing-note"><span>NO PAYMENT TAKEN</span><p>Prices and features may change before launch. See our <a href="/billing">billing policy</a> for the current status.</p></section></main>}
 
 function App() {
   const [screen, setScreen] = useState<Screen>(screenForPath)
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
 
   const go = (next: Screen) => {
     window.history.pushState({}, '', pathForScreen[next])
@@ -43,12 +44,43 @@ function App() {
     return () => window.removeEventListener('popstate', sync)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    void loadSession().then(found => { if (active) setUser(found) }).finally(() => { if (active) setCheckingSession(false) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!checkingSession && !user && screen === 'dashboard') {
+      window.history.replaceState({}, '', '/login')
+      setScreen('login')
+    }
+  }, [checkingSession, user, screen])
+
+  async function signOut() {
+    if (user) {
+      try {
+        const response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': user.csrf_token } })
+        if (!response.ok) throw new Error('Sign-out failed')
+      } catch {
+        window.alert('Could not sign out. Check your connection and try again.')
+        return
+      }
+    }
+    setUser(null)
+    go('landing')
+  }
+
+  if (checkingSession && (screen === 'dashboard' || screen === 'login' || screen === 'invite')) return <div className="auth-loading">OPENING YLD…</div>
+
   if (screen === 'landing') return <><Landing onLogin={() => go('login')} onPricing={() => go('pricing')} onHow={() => go('how')} /><LegalFooter /></>
   if (screen === 'how') return <><HowItWorks onBack={() => go('landing')} onPricing={() => go('pricing')} onLogin={() => go('login')} /><LegalFooter /></>
   if (screen === 'pricing') return <><Pricing onBack={() => go('landing')} onLogin={() => go('login')} /><LegalFooter /></>
-  if (screen === 'login') return <><Login onBack={() => go('landing')} onDone={() => go('dashboard')} /><LegalFooter /></>
+  if (screen === 'login') return <><Login onBack={() => go('landing')} onOpen={() => go('dashboard')} user={user} /><LegalFooter /></>
+  if (screen === 'invite') return <><AcceptInvite onDone={found => { setUser(found); window.history.replaceState({}, '', '/dashboard'); setScreen('dashboard') }} /><LegalFooter /></>
   if (screen === 'privacy' || screen === 'terms' || screen === 'cookies' || screen === 'billing') return <LegalPage page={screen} />
-  return <ProductDashboard onSignOut={() => go('landing')} />
+  if (!user) return <><Login onBack={() => go('landing')} onOpen={() => go('dashboard')} user={null} /><LegalFooter /></>
+  return <ProductDashboard user={user} onSignOut={() => void signOut()} onAuthLost={() => { setUser(null); window.history.replaceState({}, '', '/login'); setScreen('login') }} />
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)

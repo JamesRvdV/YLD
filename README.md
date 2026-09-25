@@ -1,42 +1,77 @@
 # YLD
 
-Local restaurant prep planner built with Vite, React, Tailwind CSS, and FastAPI.
+Invite-only restaurant prep planner built with Vite, React and FastAPI. Every invited workspace starts with 84 fictional services and has separate accounts, dishes and service history. One-use links provide access; there is no shared demo password.
 
-## Run locally
+## Local setup
 
 ```bash
 npm install
 python3 -m venv .venv
 .venv/bin/pip install -r api/requirements.txt
+cp .env.example .env
+```
+
+Edit `.env`, then load it into each shell that runs a YLD command:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+Start the API:
+
+```bash
 .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8817
 ```
 
-In a second terminal:
+In another shell, start Vite:
 
 ```bash
 npm run dev -- --host 127.0.0.1
 ```
 
-Open http://127.0.0.1:5173. Vite proxies `/api` to FastAPI on port 8817.
+Vite proxies `/api` to FastAPI. `YLD_PUBLIC_URL` must match the browser origin Vite prints (normally `http://127.0.0.1:5173`).
 
-## Simple product flow
+## Create your first demo invite
 
-1. Open the demo to see tomorrow's plan. After 14 recorded services, YLD estimates covers automatically; before that, enter an expected cover count. You can override the estimate for an unusual service.
-2. Review a prep quantity for each dish, its likely demand range, ingredient cost, and expected leftovers.
-3. After service, log prepared and sold portions. Leftovers are calculated and added to the sales history.
-4. Use **Menu costs** to update ingredient cost and sale price per portion. The next plan uses those values.
-5. Use **History** to compare the planner's recommendations with the kitchen's usual prep over 28 past services.
+For local development, generate a one-use link without sending email:
 
-The demo starts with five sample dishes and 84 sample services, so there is a usable plan immediately. It is a local prototype, not a production account system.
+```bash
+.venv/bin/python -m api.invite --email you@example.com --workspace 'Sales Demo' --local-link
+```
 
-## How the recommendation works
+Open the printed link in the browser. Invitations expire in 48 hours and can be used once. After sign-in, sessions last seven days. Existing users can request a 15-minute sign-in link from `/login`.
 
-The local database starts with 84 seeded services for five dishes. After 14 distinct recorded service days, a weighted ridge model estimates tomorrow's covers from weekday patterns and recent trend. Each dish forecast then uses up to 56 earlier services and fits a weighted ridge regression on covers, weekend demand, and trend. Recent observations receive more weight. An 80% demand range comes from the model's residual variation.
+For real email, set `RESEND_API_KEY`, `YLD_EMAIL_FROM` and the public `YLD_PUBLIC_URL`, then omit `--local-link`:
 
-For each dish, the optimizer checks possible prep quantities and minimizes expected ingredient waste plus the contribution margin and service penalty of missed sales. The planner uses a balanced default; covers can be manually overridden when needed. Service actuals are stored in a local SQLite database (`api/yld.db`) and used in subsequent forecasts.
+```bash
+.venv/bin/python -m api.invite --email chef@example.com --workspace 'Example Kitchen'
+```
 
-The history page runs a 28-service walk-forward comparison: every recommendation is trained only on data available before that service. Historic sales can be capped by stockouts, so the displayed missed-sales count is a lower-bound comparison against recorded sales, not a measurement of unknown demand.
+`YLD_EMAIL_FROM` must use a [verified Resend sending domain](https://resend.com/docs/dashboard/domains/introduction). The server uses [Resend's email API](https://resend.com/docs/api-reference/emails/send-email) for transactional invitations. No key is sent to the browser. To add another person to an existing kitchen, use `--workspace-id ID` instead of `--workspace`; the owner can read the workspace ID from `/api/auth/me` while signed in.
 
-## Current scope
+## Sales demo flow
 
-This is a local demo with fictional restaurant data. It does not connect to an existing Supabase project or deploy to Vercel; the Supabase account currently has unrelated projects, and this app has been kept local as requested.
+1. Open the invited account. It has its own isolated fictional sample kitchen.
+2. Show tomorrow's auto-estimated covers and dish-by-dish prep quantities.
+3. In **Menu costs**, change one sample ingredient cost and show the recalculated plan.
+4. Log a sample prepared/sold actual and review **History**.
+5. The owner can use **Reset sample data** before the next presentation. This permanently removes changes in that workspace.
+
+To show a real-data onboarding path, open **Import CSV** and download the fictional example file. Upload it to preview dish and service counts, then confirm the replacement. The import accepts one row per dish and service with `date,dish,sold,covers,ingredient_cost,price`; `prepared` and `category` are optional. Waste comparisons only appear when prepared counts are present. Import replaces all dishes and history in that workspace, so download **Current data** first or use a separate demo workspace when showing the flow. The owner can reset to fictional sample data afterwards.
+
+Forecasts use up to 56 earlier services in a weighted ridge regression. Covers become automatic after 14 recorded service days. History shows a 28-service walk-forward comparison using only data available before each service. Sample figures are illustrative, not proven customer savings.
+
+## Deploying for invited pilots
+
+Run `npm run build`, then serve the built site and `/api` from the same persistent FastAPI server. A multi-stage `Dockerfile` is included. Configure HTTPS in front of FastAPI, set `YLD_PUBLIC_URL` to that exact HTTPS origin, and set `YLD_DB_PATH` to an **absolute path on durable storage** with backups. Set `YLD_ENV=production` for fail-fast checks of these settings and the Resend credentials; the container sets it automatically. If using the container, mount durable storage at `/data`. This SQLite setup is for one persistent server; do not deploy it to ephemeral serverless functions. The login cookie is marked Secure when `YLD_PUBLIC_URL` uses HTTPS. Keep `.env` and the database out of source control.
+
+Before inviting real businesses, publish the seller's identity, address and contact email in the legal pages; confirm the hosting and Resend privacy disclosures; and test the live invite, sign-in, planner, reset and sign-out flow. This site does not take payment or create subscriptions. See [LEGAL_LAUNCH_CHECKLIST.md](LEGAL_LAUNCH_CHECKLIST.md).
+
+## Verification
+
+```bash
+npm run build
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
+```
