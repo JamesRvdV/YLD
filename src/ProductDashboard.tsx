@@ -69,7 +69,7 @@ export default function ProductDashboard({ onSignOut }: { onSignOut: () => void 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  async function loadPlan(nextCovers?: number) {
+  async function loadPlan(nextCovers?: number, fallbackCovers?: number) {
     setLoading(true)
     setError('')
     try {
@@ -81,6 +81,10 @@ export default function ProductDashboard({ onSignOut }: { onSignOut: () => void 
       if (response.status === 409) {
         const body = await response.json()
         if (body.detail?.code === 'covers_needed') {
+          if (fallbackCovers !== undefined) {
+            await loadPlan(fallbackCovers)
+            return
+          }
           setNeedsCovers(true)
           setCoverHistoryDays(body.detail.service_days)
           setPlan(null)
@@ -140,7 +144,7 @@ export default function ProductDashboard({ onSignOut }: { onSignOut: () => void 
       }
       setActualDish(null)
       setNotice(`${actualDish.name}: ${made - soldCount} leftover portions recorded.`)
-      await loadPlan(plan?.cover_source === 'manual' ? plan.covers : undefined)
+      await loadPlan(plan?.cover_source === 'manual' && plan.cover_history_days >= 14 ? plan.covers : undefined, plan?.covers)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save the service actuals.')
     } finally {

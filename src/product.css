@@ -177,7 +177,12 @@ html body #root .landing .dynamic-numbers .numbers-note h2 em { color: #111 !imp
 .product-total { display: flex; flex-direction: column; align-items: end; gap: 5px; padding-bottom: 2px; white-space: nowrap; }
 .product-total strong { font-size: 72px; line-height: .82; letter-spacing: -.08em; }
 .product-total span { font-size: 10px; font-weight: 800; letter-spacing: .1em; }
-.product-controls { display: grid; grid-template-columns: minmax(180px, 260px) auto; align-items: end; justify-content: start; gap: 14px; padding: 22px 0; border-bottom: 1px solid #171717; }
+.product-cover-bar { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 22px 0; border-bottom: 1px solid #171717; }
+.product-cover-bar strong { display: block; margin: 5px 0 7px; font-size: 30px; line-height: 1; letter-spacing: -.06em; }
+.product-cover-bar p, .product-cover-help { margin: 0; color: #444; font-size: 13px; line-height: 1.4; }
+.product-cover-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.product-controls { display: grid; grid-template-columns: minmax(180px, 260px) auto auto; align-items: end; justify-content: start; gap: 14px; padding: 22px 0; border-bottom: 1px solid #171717; }
+.product-cover-help { grid-column: 1 / -1; }
 .product-controls label, .product-cost-row label, .product-dialog label { display: flex; flex-direction: column; gap: 8px; color: #333; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
 .product-controls input, .product-cost-row input, .product-dialog input { width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid #666; border-radius: 0; color: #171717; background: #faf9f5; font-size: 16px !important; letter-spacing: 0; }
 .product-primary, .product-secondary, .product-row-action { display: inline-flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 22px; padding: 0 16px; border: 1px solid #171717; color: #f7f6f1; background: #171717; font-size: 11px !important; font-weight: 800 !important; letter-spacing: .08em; white-space: nowrap; }
@@ -275,6 +280,9 @@ html body #root :is(.landing, .pricing-page, .how-page, .auth-page) :is(button, 
   .product-controls label:first-child, .product-controls .product-primary { grid-column: 1; }
   .product-controls label { min-width: 0; }
   .product-controls .product-primary { width: 100%; }
+  .product-cover-bar { align-items: stretch; flex-direction: column; }
+  .product-cover-actions, .product-cover-actions button { width: 100%; }
+  .product-controls .product-secondary { width: 100%; }
   .product-stats { grid-template-columns: 1fr 1fr; }
   .product-stats > div { min-height: 125px; padding: 18px 14px; border-bottom: 1px solid #171717; }
   .product-stats > div:nth-child(2) { border-right: 0; }
