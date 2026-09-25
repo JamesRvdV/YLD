@@ -13,7 +13,7 @@ class CoverForecastTest(unittest.TestCase):
     def test_auto_forecast_needs_fourteen_service_days(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             previous_db = os.environ.get("YLD_DB_PATH")
-            os.environ["YLD_DB_PATH"] = str(Path(temp_dir) / "demo.db")
+            os.environ["YLD_DB_PATH"] = str(Path(temp_dir) / "test.db")
             try:
                 module_path = Path(__file__).resolve().parents[1] / "api" / "main.py"
                 spec = importlib.util.spec_from_file_location("yld_cover_test", module_path)
@@ -24,7 +24,14 @@ class CoverForecastTest(unittest.TestCase):
                 module.issue_invite("owner@example.com", workspace_name="Forecast Test", send=False)
                 with module.db() as conn:
                     workspace_id = conn.execute("SELECT id FROM workspaces").fetchone()[0]
-                user = {"workspace_id": workspace_id}
+                    self.assertEqual(conn.execute("SELECT COUNT(*) FROM workspace_dishes").fetchone()[0], 0)
+                user = {"workspace_id": workspace_id, "role": "owner"}
+
+                lines = ["date,dish,sold,covers,prepared,ingredient_cost,price"]
+                for days_ago in range(14, 0, -1):
+                    day = (module.local_today() - timedelta(days=days_ago)).isoformat()
+                    lines.append(f"{day},Soup,{12 + days_ago % 3},75,17,3.00,12.00")
+                module.commit_import(module.SalesCsvInput(csv_text="\n".join(lines)), user)
 
                 automatic = module.plan(module.PlanInput(), user)
                 self.assertEqual(automatic["cover_source"], "forecast")
@@ -48,7 +55,8 @@ class CoverForecastTest(unittest.TestCase):
 
                 extra_day = (module.local_today() - timedelta(days=90)).isoformat()
                 with module.db() as conn:
-                    conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers) VALUES (?,?,?,?,?,?,?)", (workspace_id, extra_day, "short-rib", 15, 18, 3, 77))
+                    dish_id = conn.execute("SELECT id FROM workspace_dishes WHERE workspace_id=?", (workspace_id,)).fetchone()[0]
+                    conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers) VALUES (?,?,?,?,?,?,?)", (workspace_id, extra_day, dish_id, 15, 18, 3, 77))
                 automatic = module.plan(module.PlanInput(), user)
                 self.assertEqual(automatic["cover_source"], "forecast")
                 self.assertEqual(automatic["cover_history_days"], 14)

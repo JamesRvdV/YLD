@@ -8,7 +8,7 @@ export type SessionUser = {
   workspace_id: string
   workspace_name: string
   csrf_token: string
-  data_mode: 'sample' | 'imported'
+  data_mode: 'empty' | 'imported'
 }
 
 export async function loadSession(): Promise<SessionUser | null> {
@@ -45,7 +45,7 @@ export function Login({ onBack, onOpen, user }: { onBack: () => void; onOpen: ()
     }
   }
 
-  return <main className="auth-page"><button className="auth-brand" onClick={onBack}>YLD<span>.</span></button><div className="auth-card"><div className="auth-kicker">PRIVATE KITCHEN ACCESS</div><h1>MAKE A<br/><em>better call.</em></h1><p>{user ? `You're signed in to ${user.workspace_name}.` : 'Enter the email address that received your YLD invitation. We’ll send a one-use sign-in link.'}</p>{user ? <button className="auth-submit" onClick={onOpen}>OPEN YOUR KITCHEN <span>→</span></button> : <form onSubmit={event => void submit(event)}><label>EMAIL ADDRESS<input required autoComplete="email" type="email" value={email} onChange={event => setEmail(event.target.value)} /></label>{error && <div className="error" role="alert">{error}</div>}{message && <div className="auth-feedback" role="status">{message}</div>}<button className="auth-submit" disabled={sending}>{sending ? 'SENDING…' : 'EMAIL ME A LINK'} <span>→</span></button></form>}<p className="auth-legal">Access is by invitation. See our <a href="/privacy">Privacy policy</a> and <a href="/terms">Terms of use</a>.</p><button className="back-link" onClick={onBack}>← BACK TO YLD</button></div><div className="auth-aside"><p>PREP WITH<br/><em> PURPOSE.</em></p><span>YLD / 2026</span></div></main>
+  return <main className="auth-page"><button className="auth-brand" onClick={onBack}>YLD<span>.</span></button><div className="auth-card"><div className="auth-kicker">PRIVATE KITCHEN ACCESS</div><h1>MAKE A<br/><em>better call.</em></h1><p>{user ? `You're signed in to ${user.workspace_name}.` : 'Enter the email address that received your YLD invitation. We’ll email you a one-use sign-in link.'}</p>{user ? <button className="auth-submit" onClick={onOpen}>OPEN YOUR KITCHEN <span>→</span></button> : <form onSubmit={event => void submit(event)}><label>EMAIL ADDRESS<input required autoComplete="email" type="email" value={email} onChange={event => setEmail(event.target.value)} /></label>{error && <div className="error" role="alert">{error}</div>}{message && <div className="auth-feedback" role="status">{message}</div>}<button className="auth-submit" disabled={sending}>{sending ? 'REQUESTING…' : 'EMAIL ME A LINK'} <span>→</span></button></form>}<p className="auth-legal">Access is by invitation. See our <a href="/privacy">Privacy policy</a> and <a href="/terms">Terms of use</a>.</p><button className="back-link" onClick={onBack}>← BACK TO YLD</button></div><div className="auth-aside"><p>PREP WITH<br/><em> PURPOSE.</em></p><span>YLD / 2026</span></div></main>
 }
 
 export function AcceptInvite({ onDone }: { onDone: (user: SessionUser) => void }) {

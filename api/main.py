@@ -4,8 +4,9 @@ import math
 import csv
 import io
 import os
-import random
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 import hashlib
 import json
 import logging
@@ -17,7 +18,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from html import escape
 from pathlib import Path
-from statistics import pstdev
+from statistics import NormalDist, pstdev
 from typing import Optional
 from zoneinfo import ZoneInfo
 from urllib.error import HTTPError, URLError
@@ -29,14 +30,17 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 DB_PATH = Path(os.getenv("YLD_DB_PATH", Path(__file__).parent / "yld.db"))
+DATABASE_URL = os.getenv("DATABASE_URL")
+if os.getenv("YLD_REQUIRE_POSTGRES") == "1" and not DATABASE_URL:
+    raise RuntimeError("YLD_REQUIRE_POSTGRES requires DATABASE_URL")
 PUBLIC_URL = os.getenv("YLD_PUBLIC_URL", "http://127.0.0.1:5173").rstrip("/")
 SESSION_SECONDS = 7 * 24 * 60 * 60
 LINK_SECONDS = 48 * 60 * 60
 COOKIE_NAME = "yld_session"
 BUSINESS_TZ = ZoneInfo("Pacific/Auckland")
 if os.getenv("YLD_ENV") == "production":
-    if not PUBLIC_URL.startswith("https://") or not DB_PATH.is_absolute() or not os.getenv("RESEND_API_KEY") or not os.getenv("YLD_EMAIL_FROM"):
-        raise RuntimeError("Production requires HTTPS YLD_PUBLIC_URL, absolute YLD_DB_PATH, RESEND_API_KEY and YLD_EMAIL_FROM")
+    if not PUBLIC_URL.startswith("https://") or (not DATABASE_URL and not DB_PATH.is_absolute()) or not os.getenv("RESEND_API_KEY") or not os.getenv("YLD_EMAIL_FROM"):
+        raise RuntimeError("Production requires HTTPS YLD_PUBLIC_URL, DATABASE_URL or absolute YLD_DB_PATH, RESEND_API_KEY and YLD_EMAIL_FROM")
 app = FastAPI(title="YLD Prep Planner API", version="1.0")
 logger = logging.getLogger("yld.auth")
 
@@ -54,27 +58,52 @@ async def security_headers(request: Request, call_next):
 def local_today() -> date:
     return datetime.now(BUSINESS_TZ).date()
 
-ITEMS = [
-    ("short-rib", "Braised short rib", "MAINS", 32, 12.8, 18, 3.5, "Slow braised, red wine jus"),
-    ("mushroom", "Wild mushroom pasta", "MAINS", 27, 8.4, 24, 4.2, "Brown butter, parmesan"),
-    ("chicken", "Roast chicken", "MAINS", 29, 10.2, 21, 3.8, "Lemon, pan gravy"),
-    ("burrata", "Burrata & tomatoes", "STARTERS", 19, 6.5, 17, 3.0, "Heirloom tomato, basil"),
-    ("tart", "Dark chocolate tart", "DESSERT", 15, 4.1, 15, 2.4, "Crème fraîche, sea salt"),
-]
-
 @contextmanager
 def db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
+    if DATABASE_URL:
+        conn = PostgresConnection(DATABASE_URL)
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
         conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
+class PostgresConnection:
+    """Keep existing parameterized queries while moving the backend to Postgres."""
+
+    def __init__(self, url: str):
+        self.connection = psycopg.connect(url, row_factory=dict_row, connect_timeout=5, sslmode="require")
+        self.connection.execute("SET search_path TO yld")
+
+    def execute(self, query, params=None):
+        return self.connection.execute(query.replace("?", "%s"), params)
+
+    def executemany(self, query, params):
+        with self.connection.cursor() as cursor:
+            cursor.executemany(query.replace("?", "%s"), params)
+
+    def commit(self):
+        self.connection.commit()
+
+    def rollback(self):
+        self.connection.rollback()
+
+    def close(self):
+        self.connection.close()
+
 def init_db():
+    if DATABASE_URL:
+        with db() as conn:
+            conn.execute("SELECT 1 FROM workspaces LIMIT 1")
+        return
     with db() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -87,25 +116,16 @@ def init_db():
         CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
         """)
         if "data_mode" not in {row[1] for row in conn.execute("PRAGMA table_info(workspaces)")}:
-            conn.execute("ALTER TABLE workspaces ADD COLUMN data_mode TEXT NOT NULL DEFAULT 'sample'")
+            conn.execute("ALTER TABLE workspaces ADD COLUMN data_mode TEXT NOT NULL DEFAULT 'empty'")
         if "prep_known" not in {row[1] for row in conn.execute("PRAGMA table_info(workspace_history)")}:
             conn.execute("ALTER TABLE workspace_history ADD COLUMN prep_known INTEGER NOT NULL DEFAULT 1")
-
-def seed_sample_data(conn, workspace_id: str):
-    """An isolated, repeatable fictional kitchen for each invited workspace."""
-    conn.executemany("INSERT INTO workspace_dishes VALUES (?,?,?,?,?,?,?,?,?)", [(workspace_id, *item) for item in ITEMS])
-    rng = random.Random(42)
-    today = local_today()
-    for offset in range(84, 0, -1):
-        day = today - timedelta(days=offset)
-        weekend = day.weekday() in (4, 5)
-        covers = max(42, round((93 if weekend else 70) + rng.gauss(0, 9)))
-        for idx, (item_id, _, _, _, _, baseline, _, _) in enumerate(ITEMS):
-            trend = 1 + (84-offset) * (0.0015 if idx in (1, 3) else -0.0006)
-            demand = max(0, round(baseline * covers / 75 * trend + rng.gauss(0, 2.5)))
-            usual_prep = max(0, round(baseline * (1.22 if weekend else 1.05) + rng.gauss(0, 2)))
-            sold = min(demand, usual_prep)
-            conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers) VALUES (?,?,?,?,?,?,?)", (workspace_id, day.isoformat(), item_id, sold, usual_prep, usual_prep-sold, covers))
+        # Earlier workspaces had generated menu and service rows. They must
+        # start empty; the CSV import is the only source of history.
+        conn.execute("DELETE FROM workspace_history WHERE workspace_id IN (SELECT id FROM workspaces WHERE data_mode='sample')")
+        conn.execute("DELETE FROM workspace_dishes WHERE workspace_id IN (SELECT id FROM workspaces WHERE data_mode='sample')")
+        conn.execute("UPDATE workspaces SET data_mode='empty' WHERE data_mode='sample'")
+        for legacy_table in ("service_notes", "service_history", "dishes", "users"):
+            conn.execute(f"DROP TABLE IF EXISTS {legacy_table}")
 
 def parse_sales_csv(csv_text: str):
     """One row per dish and service. Validate everything before replacing any data."""
@@ -118,7 +138,7 @@ def parse_sales_csv(csv_text: str):
         aliases = {"service_date": "day", "date": "day", "day": "day", "dish": "dish", "item": "dish", "dish_name": "dish", "units_sold": "sold", "sold": "sold", "covers": "covers", "prepared": "prepared", "ingredient_cost": "ingredient_cost", "price": "price", "category": "category"}
         headers = {name.strip().lower(): name for name in reader.fieldnames if name is not None}
         columns = {canonical: next((headers[alias] for alias, target in aliases.items() if target == canonical and alias in headers), None) for canonical in set(aliases.values())}
-        missing = [name for name in ("day", "dish", "sold", "covers", "ingredient_cost", "price") if not columns[name]]
+        missing = [name for name in ("day", "dish", "sold", "covers") if not columns[name]]
         if missing:
             raise ValueError("Missing columns: " + ", ".join(missing))
         dishes, rows, seen, daily_covers = {}, [], set(), {}
@@ -138,6 +158,8 @@ def parse_sales_csv(csv_text: str):
                 return int(value)
             def money_value(name):
                 value = cell(name)
+                if not value:
+                    return None
                 try:
                     number = float(value)
                 except ValueError:
@@ -164,8 +186,6 @@ def parse_sales_csv(csv_text: str):
                 raise ValueError(f"Row {line_number}: sold cannot exceed prepared")
             ingredient_cost = money_value("ingredient_cost")
             price = money_value("price")
-            if price <= ingredient_cost:
-                raise ValueError(f"Row {line_number}: price must exceed ingredient_cost")
             category = cell("category") or "MENU"
             if len(category) > 60:
                 raise ValueError(f"Row {line_number}: category is too long")
@@ -175,9 +195,16 @@ def parse_sales_csv(csv_text: str):
             if day in daily_covers and daily_covers[day] != covers:
                 raise ValueError(f"Row {line_number}: covers must match for all dishes on a date")
             daily_covers[day] = covers
-            if dish_key in dishes and (dishes[dish_key]["ingredient_cost"], dishes[dish_key]["price"]) != (ingredient_cost, price):
-                raise ValueError(f"Row {line_number}: costs for {name} differ across rows")
-            dishes[dish_key] = {"id": str(uuid.uuid5(uuid.NAMESPACE_URL, dish_key)), "name": name, "category": category.upper(), "ingredient_cost": ingredient_cost, "price": price}
+            if dish_key not in dishes:
+                dishes[dish_key] = {"id": str(uuid.uuid5(uuid.NAMESPACE_URL, dish_key)), "name": name, "category": category.upper(), "ingredient_cost": None, "price": None}
+            dish = dishes[dish_key]
+            for field, amount in (("ingredient_cost", ingredient_cost), ("price", price)):
+                if amount is not None:
+                    if dish[field] is not None and dish[field] != amount:
+                        raise ValueError(f"Row {line_number}: {field} for {name} differs across rows")
+                    dish[field] = amount
+            if dish["price"] is not None and dish["ingredient_cost"] is not None and dish["price"] <= dish["ingredient_cost"]:
+                raise ValueError(f"Row {line_number}: price must exceed ingredient_cost")
             rows.append({"day": day.isoformat(), "dish_key": dish_key, "sold": sold, "prepared": prepared, "leftover": prepared - sold, "covers": covers, "prep_known": int(prep_known)})
         if not rows:
             raise ValueError("CSV has no service rows")
@@ -260,8 +287,7 @@ def issue_invite(email: str, workspace_name: Optional[str] = None, workspace_id:
                 workspace_id = existing["workspace_id"]
             else:
                 workspace_id = str(uuid.uuid4())
-                conn.execute("INSERT INTO workspaces(id,name,created_at) VALUES (?,?,?)", (workspace_id, workspace_name, now))
-                seed_sample_data(conn, workspace_id)
+                conn.execute("INSERT INTO workspaces(id,name,created_at,data_mode) VALUES (?,?,?,'empty')", (workspace_id, workspace_name, now))
             role = "owner"
         else:
             workspace = conn.execute("SELECT name FROM workspaces WHERE id=?", (workspace_id,)).fetchone()
@@ -363,7 +389,7 @@ def forecast_covers(conn, workspace_id, target_day):
         weekday = date.fromisoformat(service["day"]).weekday()
         features.append([1.0] + [float(weekday == day) for day in range(7)] + [idx / max(1, len(recent)-1)])
         weights.append(math.exp((idx - len(recent) + 1) / 28))
-        outcomes.append(service["covers"])
+        outcomes.append(float(service["covers"]))
     coefficients = solve_ridge(features, outcomes, weights)
     target = [1.0] + [float(target_day.weekday() == day) for day in range(7)] + [1.0]
     estimate = round(sum(weight * value for weight, value in zip(coefficients, target)))
@@ -376,20 +402,25 @@ def normal_pdf(x):
     return math.exp(-x*x/2) / math.sqrt(2*math.pi)
 
 def optimize(mu, sigma, ingredient_cost, shortage_cost, waste_weight):
-    # Expected overage and underage for a normally distributed demand estimate.
-    best = None
-    for qty in range(max(0, math.floor(mu - 4*sigma)), math.ceil(mu + 4*sigma) + 1):
+    # The newsvendor optimum is the demand quantile where marginal waste and
+    # missed-sale costs balance. Check the adjacent whole-portion quantities.
+    waste_cost = ingredient_cost * waste_weight
+    critical = shortage_cost / (shortage_cost + waste_cost)
+    ideal = NormalDist(mu, sigma).inv_cdf(critical)
+    quantities = {max(0, math.floor(ideal)), max(0, math.ceil(ideal))}
+    candidates = []
+    for qty in quantities:
         z = (qty-mu)/sigma
         over = sigma * (normal_pdf(z) + z*normal_cdf(z))
         under = sigma * (normal_pdf(z) - z*(1-normal_cdf(z)))
-        cost = over * ingredient_cost * waste_weight + under * shortage_cost
-        if best is None or cost < best[0]:
-            best = (cost, qty, over, under)
-    return best
+        cost = over * waste_cost + under * shortage_cost
+        candidates.append((cost, qty, over, under))
+    return min(candidates)
 
 def backtest(dishes, waste_weight):
     """Walk forward over held-out services using only earlier observations."""
     totals = {"usual_waste": 0.0, "model_waste": 0.0, "observed_missed": 0, "services": 0}
+    tested_days = set()
     for dish in dishes:
         rows = dish["history"]
         for idx in range(max(14, len(rows)-28), len(rows)):
@@ -405,18 +436,23 @@ def backtest(dishes, waste_weight):
             totals["model_waste"] += max(0, qty-actual["sold"]) * dish["ingredient_cost"]
             totals["observed_missed"] += max(0, actual["sold"]-qty)
             totals["services"] += 1
-    days = totals["services"] / max(1, len(dishes))
-    return {"days": int(days), "available": totals["services"] > 0, "usual_waste": round(totals["usual_waste"]) if totals["services"] else None, "model_waste": round(totals["model_waste"]) if totals["services"] else None, "difference": round(totals["usual_waste"]-totals["model_waste"]) if totals["services"] else None, "observed_missed": totals["observed_missed"] if totals["services"] else None}
+            tested_days.add(actual["day"])
+    return {"days": len(tested_days), "available": totals["services"] > 0, "usual_waste": round(totals["usual_waste"]) if totals["services"] else None, "model_waste": round(totals["model_waste"]) if totals["services"] else None, "difference": round(totals["usual_waste"]-totals["model_waste"]) if totals["services"] else None, "observed_missed": totals["observed_missed"] if totals["services"] else None}
 
 def build_plan(workspace_id: str, covers: Optional[int], event_boost: int, waste_weight: float):
     tomorrow = local_today() + timedelta(days=1)
     with db() as conn:
+        workspace = conn.execute("SELECT data_mode FROM workspaces WHERE id=?", (workspace_id,)).fetchone()
+        if not workspace or workspace["data_mode"] != "imported":
+            raise HTTPException(409, {"code": "import_needed"})
+        dishes = [dict(r) for r in conn.execute("SELECT * FROM workspace_dishes WHERE workspace_id=?", (workspace_id,))]
+        if not dishes:
+            raise HTTPException(409, {"code": "import_needed"})
         estimated_covers, service_days = forecast_covers(conn, workspace_id, tomorrow)
         if covers is None and estimated_covers is None:
             raise HTTPException(409, {"code": "covers_needed", "service_days": service_days, "required_days": 14})
         cover_source = "forecast" if covers is None else "manual"
         covers = estimated_covers if covers is None else covers
-        dishes = [dict(r) for r in conn.execute("SELECT * FROM workspace_dishes WHERE workspace_id=?", (workspace_id,))]
         rows = []
         for dish in dishes:
             h = history(conn, workspace_id, dish["id"])
@@ -462,6 +498,7 @@ class DishCostsInput(BaseModel):
 
 class SalesCsvInput(BaseModel):
     csv_text: str = Field(min_length=1, max_length=2_000_000)
+    menu_costs: dict[str, DishCostsInput] = Field(default_factory=dict)
 
 @app.get("/api/health")
 def health():
@@ -483,7 +520,7 @@ def request_link(payload: EmailInput, background_tasks: BackgroundTasks):
     with db() as conn:
         account = conn.execute("SELECT a.id,w.name AS workspace_name FROM accounts a JOIN workspaces w ON w.id=a.workspace_id WHERE a.email=? AND a.activated_at IS NOT NULL", (email,)).fetchone()
         if account:
-            recent = conn.execute("SELECT COUNT(*) FROM auth_links WHERE account_id=? AND created_at>?", (account["id"], now - 3600)).fetchone()[0]
+            recent = conn.execute("SELECT COUNT(*) AS count FROM auth_links WHERE account_id=? AND created_at>?", (account["id"], now - 3600)).fetchone()["count"]
             if recent < 3:
                 token = secrets.token_urlsafe(32)
                 conn.execute("INSERT INTO auth_links VALUES (?,?,?,?,NULL,?)", (token_hash(token), account["id"], "login", now + 15 * 60, now))
@@ -527,13 +564,22 @@ def plan(payload: PlanInput, user: dict = Depends(current_user)):
 @app.post("/api/import/preview")
 def preview_import(payload: SalesCsvInput, user: dict = Depends(current_user)):
     dishes, rows, days = parse_sales_csv(payload.csv_text)
-    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": user["data_mode"]}
+    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "dish_costs": sorted(dishes.values(), key=lambda dish: dish["name"]), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": user["data_mode"]}
 
 @app.post("/api/import/commit")
 def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
     if user["role"] != "owner":
         raise HTTPException(403, "Only the workspace owner can import service history")
     dishes, rows, days = parse_sales_csv(payload.csv_text)
+    for dish in dishes.values():
+        override = payload.menu_costs.get(dish["id"])
+        if override:
+            dish["ingredient_cost"] = round(override.ingredient_cost, 2)
+            dish["price"] = round(override.price, 2)
+        if dish["ingredient_cost"] is None or dish["price"] is None:
+            raise HTTPException(400, f"Enter ingredient cost and sale price for {dish['name']}")
+        if dish["ingredient_cost"] <= 0 or dish["price"] <= dish["ingredient_cost"]:
+            raise HTTPException(400, f"Sale price must exceed ingredient cost for {dish['name']}")
     workspace_id = user["workspace_id"]
     with db() as conn:
         conn.execute("DELETE FROM workspace_history WHERE workspace_id=?", (workspace_id,))
@@ -581,18 +627,10 @@ def save_actual(payload: ActualInput, user: dict = Depends(require_csrf)):
     with db() as conn:
         if not conn.execute("SELECT 1 FROM workspace_dishes WHERE workspace_id=? AND id=?", (user["workspace_id"], payload.dish_id)).fetchone():
             raise HTTPException(404, "Dish not found")
+        # Covers belong to the service, not an individual dish. Keep existing
+        # rows for that day consistent when actual attendance is corrected.
+        conn.execute("UPDATE workspace_history SET covers=? WHERE workspace_id=? AND day=?", (payload.covers, user["workspace_id"], payload.day.isoformat()))
         conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers,prep_known) VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(workspace_id,day,dish_id) DO UPDATE SET sold=excluded.sold,prepared=excluded.prepared,leftover=excluded.leftover,covers=excluded.covers,prep_known=1", (user["workspace_id"], payload.day.isoformat(), payload.dish_id, payload.sold, payload.prepared, payload.prepared-payload.sold, payload.covers))
-    return {"ok": True}
-
-@app.post("/api/demo/reset")
-def reset_demo(user: dict = Depends(require_csrf)):
-    if user["role"] != "owner":
-        raise HTTPException(403, "Only the workspace owner can reset sample data")
-    with db() as conn:
-        conn.execute("DELETE FROM workspace_history WHERE workspace_id=?", (user["workspace_id"],))
-        conn.execute("DELETE FROM workspace_dishes WHERE workspace_id=?", (user["workspace_id"],))
-        seed_sample_data(conn, user["workspace_id"])
-        conn.execute("UPDATE workspaces SET data_mode='sample' WHERE id=?", (user["workspace_id"],))
     return {"ok": True}
 
 # One persistent FastAPI process can serve the built Vite app and API together.
