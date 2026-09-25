@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from statistics import pstdev
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -168,7 +169,7 @@ def backtest(dishes, waste_weight):
     days = totals["services"] / max(1, len(dishes))
     return {"days": int(days), "usual_waste": round(totals["usual_waste"]), "model_waste": round(totals["model_waste"]), "difference": round(totals["usual_waste"]-totals["model_waste"]), "observed_missed": totals["observed_missed"]}
 
-def build_plan(covers: int | None, event_boost: int, waste_weight: float):
+def build_plan(covers: Optional[int], event_boost: int, waste_weight: float):
     tomorrow = date.today() + timedelta(days=1)
     with db() as conn:
         estimated_covers, service_days = forecast_covers(conn, tomorrow)
@@ -198,7 +199,7 @@ def build_plan(covers: int | None, event_boost: int, waste_weight: float):
         return {"date": tomorrow.isoformat(), "covers": covers, "cover_source": cover_source, "cover_history_days": service_days, "forecast_covers": estimated_covers, "event_boost": event_boost, "waste_weight": waste_weight, "dishes": [{k:v for k,v in d.items() if k != "history"} for d in rows], "summary": {"prep_units": total_units, "expected_waste": round(expected_waste), "usual_waste": round(baseline_daily), "waste_reduction": round(max(0, (baseline_daily-expected_waste)/max(1, baseline_daily)*100)), "at_risk": round(sum(d["expected_missed"] for d in rows), 1)}, "trend": trend, "backtest": backtest(rows, waste_weight)}
 
 class PlanInput(BaseModel):
-    covers: int | None = Field(None, ge=1, le=1000)
+    covers: Optional[int] = Field(None, ge=1, le=1000)
     event_boost: int = Field(0, ge=-50, le=100)
     waste_weight: float = Field(1.0, ge=0.2, le=3.0)
 
