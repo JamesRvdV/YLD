@@ -25,14 +25,15 @@ MAX_BYTES = 4_000_000
 MAX_ROWS = 20_001
 MAX_COLUMNS = 120
 FIELDS = ("date", "dish", "sold", "covers", "prepared", "ingredient_cost", "price", "category")
+MENU_FIELDS = ("dish", "ingredient_cost", "price", "category")
 ALIASES = {
     "date": ("date", "day", "service_date", "sale_date", "sales_date", "trading_day", "business_date", "order_date"),
     "dish": ("dish", "dish_name", "item", "item_name", "menu_item", "product", "product_name", "meal"),
     "sold": ("sold", "units_sold", "quantity_sold", "qty_sold", "qty", "quantity", "units", "orders", "num_orders", "count"),
     "covers": ("covers", "cover", "guests", "guest_count", "pax", "diners", "customers", "customer_count"),
     "prepared": ("prepared", "made", "cooked", "produced", "quantity_prepared", "qty_prepared"),
-    "ingredient_cost": ("ingredient_cost", "food_cost", "unit_cost", "cost_per_portion"),
-    "price": ("price", "sale_price", "selling_price", "unit_price", "menu_price"),
+    "ingredient_cost": ("ingredient_cost", "food_cost", "unit_cost", "cost", "menu_cost", "recipe_cost", "cost_per_portion"),
+    "price": ("price", "sale_price", "selling_price", "unit_price", "menu_price", "retail_price"),
     "category": ("category", "menu_category", "course"),
 }
 
@@ -120,7 +121,7 @@ def header_at(rows: list[list[str]], index: int) -> list[str]:
     return headers
 
 
-def choose_header(rows: list[list[str]]) -> tuple[int, list[str]]:
+def choose_header(rows: list[list[str]], fields: tuple[str, ...] = FIELDS) -> tuple[int, list[str]]:
     best = None
     for index in range(min(15, len(rows))):
         try:
@@ -128,7 +129,7 @@ def choose_header(rows: list[list[str]]) -> tuple[int, list[str]]:
         except ValueError:
             continue
         tokens = {token(name) for name in headers}
-        matches = sum(any(alias in tokens for alias in aliases) for aliases in ALIASES.values())
+        matches = sum(any(alias in tokens for alias in ALIASES[field]) for field in fields)
         score = matches * 10 + min(len(headers), 10) - index
         if best is None or score > best[0]:
             best = (score, index, headers)
@@ -281,6 +282,68 @@ def normalize(filename: str, content: bytes, mapping: dict) -> str:
     writer.writeheader()
     writer.writerows(output)
     return target.getvalue()
+
+
+def describe_menu(filename: str, content: bytes) -> tuple[dict, dict]:
+    """Describe a menu-price sheet without requiring service-history columns."""
+    workbook = tables(filename, content)
+    details = []
+    for sheet, rows in workbook.items():
+        if not rows:
+            continue
+        index, headers = choose_header(rows, MENU_FIELDS)
+        sample = [dict(zip(headers, row)) for row in rows[index + 1:index + 4] if any(row)]
+        details.append({"name": sheet, "header_row": index + 1, "headers": headers, "sample": sample,
+                        "rows": max(0, len(rows) - index - 1)})
+    if not details:
+        raise ValueError("Spreadsheet has no data rows")
+    signature = hashlib.sha256(json.dumps([("menu", item["name"], item["headers"]) for item in details], sort_keys=True).encode()).hexdigest()
+    first = max(details, key=lambda item: (sum(token(header) in {alias for field in MENU_FIELDS for alias in ALIASES[field]} for header in item["headers"]), item["rows"]))
+    by_token = {token(header): header for header in first["headers"]}
+    columns = {field: next((by_token[alias] for alias in ALIASES[field] if alias in by_token), "") for field in MENU_FIELDS}
+    return {"sheets": details, "signature": signature}, {"sheet": first["name"], "header_row": first["header_row"], "columns": columns}
+
+
+def normalize_menu(filename: str, content: bytes, mapping: dict) -> list[dict[str, str]]:
+    if not isinstance(mapping, dict) or set(mapping) != {"sheet", "header_row", "columns"}:
+        raise ValueError("Invalid menu mapping fields")
+    workbook = tables(filename, content)
+    sheet = mapping["sheet"]
+    if not isinstance(sheet, str) or sheet not in workbook or type(mapping["header_row"]) is not int:
+        raise ValueError("Select a sheet and header row from this file")
+    headers = header_at(workbook[sheet], mapping["header_row"] - 1)
+    columns = mapping["columns"]
+    if not isinstance(columns, dict) or set(columns) != set(MENU_FIELDS) or any(not isinstance(value, str) or (value and value not in headers) for value in columns.values()):
+        raise ValueError("Mapped menu columns must exist in the selected sheet")
+    if any(not columns[field] for field in ("dish", "ingredient_cost", "price")):
+        raise ValueError("Menu needs item, ingredient cost, and sale price columns")
+    menu = []
+    seen = set()
+    for line, values in enumerate(workbook[sheet][mapping["header_row"]:], start=mapping["header_row"] + 1):
+        if not any(cell_text(value) for value in values):
+            continue
+        raw = dict(zip(headers, values))
+        dish = cell_text(raw.get(columns["dish"], ""))
+        if not dish or len(dish) > 120:
+            raise ValueError(f"Row {line}: menu item must be 1–120 characters")
+        key = dish.casefold()
+        if key in seen:
+            raise ValueError(f"Row {line}: duplicate menu item '{dish}'")
+        seen.add(key)
+        try:
+            ingredient_cost = numeric_text(cell_text(raw.get(columns["ingredient_cost"], "")), integer=False)
+            price = numeric_text(cell_text(raw.get(columns["price"], "")), integer=False)
+        except ValueError as error:
+            raise ValueError(f"Row {line}: {error}") from None
+        if not ingredient_cost or not price or Decimal(ingredient_cost) <= 0 or Decimal(price) <= Decimal(ingredient_cost) or Decimal(price) > 10000:
+            raise ValueError(f"Row {line}: sale price must be higher than ingredient cost")
+        category = cell_text(raw.get(columns["category"], "")) if columns["category"] else ""
+        if len(category) > 60:
+            raise ValueError(f"Row {line}: category is too long")
+        menu.append({"name": dish, "ingredient_cost": ingredient_cost, "price": price, "category": category})
+    if not menu:
+        raise ValueError("Menu spreadsheet has no menu items")
+    return menu
 
 
 MAPPING_SCHEMA = {

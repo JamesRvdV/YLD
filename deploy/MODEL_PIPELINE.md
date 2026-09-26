@@ -2,13 +2,12 @@
 
 The API queues a model job. A separate host-side worker claims it and runs two disposable containers. The Codex container sees opaque dish IDs, dates, sold portions and covers, with the last 14 services withheld. It is instructed to call the checked-in `inspect` and `trial` commands, comparing uniform and recency-weighted weekday ridge models across bounded windows and penalties. Its final choice is constrained by `model_selection.schema.json` and validated again by the worker. Codex has a shell inside that isolated container, so container isolation and the promotion gates remain necessary. The trainer container receives the full numeric history, has **no network**, and emits a JSON artifact containing only bounded numeric coefficients and uncertainty. The worker checks the artifact against the approved algorithm, reproduces its coefficients, and replays the held-out 14 services against YLD's existing forecast. Only dishes with at least a 3% and 0.1-portion mean absolute error improvement are activated. All other dishes continue on the standard forecast.
 
-The agent workspace combines sales upload and mapping with a left-to-right
-pipeline. `model_jobs.stage` records `queued`, `analyzing`, `training`,
+The upload modal accepts a menu-cost sheet and a sales report, previews their
+matched dishes, and queues training in the same database transaction as an
+eligible import. `model_jobs.stage` records `queued`, `analyzing`, `training`,
 `validating`, `promoting`, or `complete`; the UI polls this field every five
-seconds. Per-dish history bars use actual imported or previewed row counts.
-After validation, the dashboard can show standard and candidate mean absolute
-forecast error for each tested dish. These are real step states and measured
-errors, not an estimated percent-complete animation.
+seconds. Its progress bar advances only when a recorded stage completes. The
+animated edge signals activity and does not estimate time remaining.
 
 No model-supplied source code, pickle, shell command, or executable artifact reaches the API. The API validates the stored artifact on every plan request and falls back to the standard forecast if it is corrupt. Replacing a CSV or correcting sales or covers from an existing service archives the active model; adding a new service or correcting prepared portions keeps it available. A worker run is rejected if its training inputs change while it trains. The workspace owner can revert an active model from the dashboard.
 
@@ -32,7 +31,7 @@ docker run -d --restart unless-stopped --name yld-model-proxy --network yld-agen
 docker network connect bridge yld-model-proxy
 ```
 
-Set `YLD_AGENT_NETWORK=yld-agent-internal` and `YLD_AGENT_PROXY=http://yld-model-proxy:3128` in the worker environment. The worker verifies that the network is internal before every Codex run and passes proxy settings only to that container. The agent gets the API key, fixed inspect/trial tooling, a read-only numeric snapshot, and a writable temporary directory. It gets no database credentials, Docker socket, API server source, or restaurant names. Agent and trainer containers run as UID 65534 with a read-only root filesystem, dropped capabilities, no new privileges, a PID limit, a 512 MiB memory limit, a one-CPU limit, and a 10-minute command timeout. The trainer uses `--network none`. Codex runs with its nested shell sandbox disabled because bubblewrap cannot create user namespaces under these Docker limits; the disposable Docker container is the execution boundary. Do not run that Codex command outside the restricted container.
+Set `YLD_AGENT_NETWORK=yld-agent-internal` and `YLD_AGENT_PROXY=http://yld-model-proxy:3128` in the worker environment. The worker verifies that the network is internal before every Codex run and passes proxy settings only to that container. The agent gets the API key, fixed inspect/trial tooling, a read-only numeric snapshot, and a writable temporary directory. It gets no database credentials, Docker socket, API server source, or restaurant names. Agent and trainer containers run as the dedicated non-root host worker UID/GID so that it can read and clean up their bind-mounted outputs. They retain a read-only root filesystem, dropped capabilities, no new privileges, a PID limit, a 512 MiB memory limit, a one-CPU limit, and a 10-minute command timeout. The trainer uses `--network none`. Codex runs with its nested shell sandbox disabled because bubblewrap cannot create user namespaces under these Docker limits; the disposable Docker container is the execution boundary. Do not run that Codex command outside the restricted container.
 
 Run the worker **on the host**, under a dedicated account with access to its Docker daemon and the YLD database. Docker daemon access is highly privileged; do not mount its socket into the public API or either disposable container. A rootless Docker daemon is preferable. Use a separate environment file based on [model-worker.env.example](model-worker.env.example), mode `0600`, with `CODEX_API_KEY` configured. Do not put that key in the frontend or API container environment. The production VM uses Postgres with the applied `20260926065355_yld_model_training_registry.sql` migration; set the worker's `DATABASE_URL` to the same restricted backend role as the API. A local SQLite deployment can instead set `YLD_DB_PATH` to the host path for the same database mounted at `/data/yld.db` in the API container.
 
@@ -45,7 +44,7 @@ set +a
 uv run --locked python -m api.model_worker --once
 ```
 
-Run without `--once` under a service manager to poll continuously. The worker marks runs interrupted for over 30 minutes as failed. Enable `YLD_MODEL_WORKER_ENABLED=1` **in the API container** only after the worker is running. This exposes the training button and allows owners to queue runs; the API itself never starts Docker or receives the OpenAI key.
+Run without `--once` under a service manager to poll continuously. The worker marks runs interrupted for over 30 minutes as failed. Enable `YLD_MODEL_WORKER_ENABLED=1` **in the API container** only after the worker is running. This allows eligible owner imports to queue runs; the API itself never starts Docker or receives the OpenAI key.
 
 ## Gates and limits
 

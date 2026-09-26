@@ -52,9 +52,9 @@ Sign in as `axel.mckenna7@gmail.com`, open **Admin** in the dashboard (or `/admi
 
 Set `RESEND_API_KEY`, `YLD_EMAIL_FROM`, and `YLD_PUBLIC_URL` on the API server to deliver invitations. `YLD_EMAIL_FROM` must use a [verified Resend sending domain](https://resend.com/docs/dashboard/domains/introduction). The server uses [Resend's email API](https://resend.com/docs/api-reference/emails/send-email); no key is sent to the browser.
 
-## Import service history
+## Load menu costs and service history
 
-The import screen offers a [blank CSV template](templates/service-history.csv). It contains column headings only, with no invented sales. Add one row for each dish at each service:
+The YLD Agent modal accepts two CSV or XLSX files, each up to 4 MB. The menu file needs an item name, per-portion ingredient cost, and sale price. Sales dish names must match menu item names (case is ignored); unmatched dishes stop the import before existing data is replaced. The [blank sales CSV template](templates/service-history.csv) contains column headings only. Add one row for each dish at each service:
 
 | Column | Meaning |
 | --- | --- |
@@ -67,13 +67,15 @@ The import screen offers a [blank CSV template](templates/service-history.csv). 
 | `price` | Optional per-portion sale price in NZD |
 | `category` | Optional menu category |
 
-The minimum required information is `date,dish,sold,covers`. The import screen accepts UTF-8 CSV and XLSX files up to 4 MB. It proposes a sheet, header row, and column mapping; owners can correct the header row when a report title is mistaken for column names. It supports one-dish-per-row and dish-as-column layouts, DD/MM/YYYY and MM/DD/YYYY dates, and optional summing of repeated transaction rows. The owner checks the mapping and converted sample before the existing validator accepts the data. Missing covers cannot be inferred from sales; obtain them from another source before import. Per-dish costs can be entered in the preview when absent from the file. A confirmed mapping is saved for future uploads with the same sheet headers, separately for each workspace.
+The minimum required sales information is `date,dish,sold,covers`. The converter supports one-dish-per-row and dish-as-column layouts. Missing covers cannot be inferred from sales. The modal shows the service count and matched menu dishes before the owner confirms that the new files replace the current menu and service history. The current modal uses the proposed sheet, header, and column mapping automatically; it does not yet offer a manual mapping correction screen. Date values in the automatic path should be ISO dates or Excel date cells, and repeated transactions must already be aggregated by dish and date.
 
-Header rules work without an external API. To enable agent suggestions, configure a dedicated `YLD_IMPORT_AGENT_API_KEY` on the API server and optionally `YLD_IMPORT_AGENT_MODEL` (default `gpt-4o-mini`). Only sheet names, headers, and up to three sample rows per sheet are sent for a suggestion; the model's mapping is checked against actual headers before use. Conversion and row validation remain deterministic. The owner previews and confirms an upload. A later import replaces the workspace’s current dishes and service history; download **Current data** before replacing it. No dishes or sales are added automatically.
+Header rules work without an external API. To enable optional agent suggestions for the sales file, configure a dedicated `YLD_IMPORT_AGENT_API_KEY` on the API server and optionally `YLD_IMPORT_AGENT_MODEL` (default `gpt-4o-mini`). The owner must select the agent mapping option in the modal. Only then are sheet names, headers, and up to three sample rows per sheet sent for a suggestion; the model's mapping is checked against actual headers before use. Menu mapping uses header rules. Conversion and row validation remain deterministic. Download **Current data** before replacing a workspace's history.
 
 Forecasts use up to 56 earlier services in a weighted ridge regression. Covers become automatic after 14 recorded service days. With fewer days, enter a cover estimate. History tests up to the last 28 records per dish, but only after that dish has 14 earlier sales records. Its service-date count reflects dates actually tested. Waste comparisons require prepared counts; sales alone cannot establish actual waste.
 
-An optional [Codex model worker](deploy/MODEL_PIPELINE.md) can train a kitchen-specific demand model once a dish has 56 services. It tests a trained candidate against the existing forecast on 14 later services before activating it. The dashboard shows which dishes use a trained forecast and lets the owner return to the standard forecast. The worker is off until its isolated containers, network, and API credentials are configured.
+The `templates/restaurant-demo-*.csv` files are synthetic demo inputs, not restaurant results. Their service history includes varied prepared quantities and leftovers to illustrate an over-preparation scenario. Importing them replaces the current workspace's menu and history. Any cost difference shown after import is a projection or historical simulation, not measured savings from a real kitchen; the replay also shows observed sales that a simulated plan would have put at risk.
+
+An optional [Codex model worker](deploy/MODEL_PIPELINE.md) can train a kitchen-specific demand model once a dish has 56 services. An eligible modal import queues training automatically when that worker is enabled. The worker tests a candidate against the existing forecast on 14 held-out services before activating it. The dashboard polls the job stage every five seconds and shows a stage-based progress bar; it is not an estimated time or percentage. Local deployments leave the worker off by default; the production VM worker was enabled after an isolated live smoke test on 2026-09-26.
 
 An offline [public-data cover prediction baseline](ml/COVER_BASELINE.md) includes a trained model, source data, and a chronological evaluation. It is separate from workspace forecasts and the inventory modeller.
 

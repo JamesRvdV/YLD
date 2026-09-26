@@ -151,10 +151,11 @@ class ModelPipelineTest(unittest.TestCase):
             self.main.commit_import(self.main.SalesCsvInput(
                 csv_text=normalized["csv_text"],
                 menu_costs={dish_id: self.main.DishCostsInput(ingredient_cost=3, price=12)},
+                train=True,
                 source_mapping=inspected["mapping"], source_signature=inspected["signature"],
             ), user)
             self.assertEqual(self.main.inspect_spreadsheet(payload, user)["mapping_source"], "saved")
-            self.assertEqual(self.main.request_model_training(user)["status"], "queued")
+            self.assertEqual(self.main.model_status(user)["job"]["status"], "queued")
             with patch.object(self.worker, "run_agent", return_value=SPEC), patch.object(
                 self.worker, "run_trainer", side_effect=lambda full, spec, work, data: train(full, spec)
             ):
@@ -213,6 +214,28 @@ class ModelPipelineTest(unittest.TestCase):
                 self.main.request_model_training({"workspace_id": "kitchen-1", "role": "member"})
             self.assertEqual(error.exception.status_code, 403)
 
+    def test_training_import_requires_menu_costs_and_reports_new_job(self):
+        self.seed(rows=sample_rows(56))
+        csv_text = "date,dish,sold,covers\n" + "".join(
+            f"{row['day']},Soup,{row['sold']},{row['covers']}\n" for row in sample_rows(56)
+        )
+        user = {"workspace_id": "kitchen-1", "role": "owner"}
+        with self.main.db() as conn:
+            conn.execute("INSERT INTO model_jobs(id,workspace_id,status,created_at) VALUES (?,?,?,?)",
+                         ("zzzz-older", "kitchen-1", "failed", int(self.main.time.time())))
+        from fastapi import HTTPException
+        with patch.dict(os.environ, {"YLD_MODEL_WORKER_ENABLED": "1"}):
+            with self.assertRaises(HTTPException) as error:
+                self.main.commit_import(self.main.SalesCsvInput(csv_text=csv_text, train=True), user)
+            self.assertEqual(error.exception.status_code, 400)
+            with self.main.db() as conn:
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM workspace_history WHERE workspace_id=?", ("kitchen-1",)).fetchone()[0], 56)
+            dish_id = str(self.main.uuid.uuid5(self.main.uuid.NAMESPACE_URL, "soup"))
+            result = self.main.commit_import(self.main.SalesCsvInput(csv_text=csv_text, train=True,
+                menu_costs={dish_id: self.main.DishCostsInput(ingredient_cost=3, price=12)}), user)
+            self.assertEqual(result["training"]["status"], "queued")
+            self.assertEqual(self.main.model_status(user)["job"]["id"], result["training"]["job_id"])
+
     def test_agent_rejects_a_network_with_direct_egress(self):
         data = Path(self.temp.name, "data")
         work = Path(self.temp.name, "work")
@@ -237,17 +260,23 @@ class ModelPipelineTest(unittest.TestCase):
             self.assertEqual(self.worker.run_agent({"dishes": []}, str(work), str(data)), SPEC)
 
     def test_docker_execution_keeps_the_key_inside_the_agent_container(self):
-        with patch.object(self.worker.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as launched:
+        with patch.object(self.worker.os, "getuid", return_value=12345), patch.object(self.worker.os, "getgid", return_value=23456), patch.object(self.worker.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as launched:
             self.worker.docker_run("agent", "/tmp/work", "/tmp/data", ["codex", "exec"], network="internal", key=True, proxy="http://proxy:3128")
             agent_command = launched.call_args.args[0]
             self.assertIn("CODEX_API_KEY", agent_command)
             self.assertIn("--read-only", agent_command)
             self.assertIn("--cap-drop=ALL", agent_command)
+            self.assertEqual(agent_command[agent_command.index("--user") + 1], "12345:23456")
             self.assertEqual(agent_command[agent_command.index("--network") + 1], "internal")
             self.worker.docker_run("trainer", "/tmp/work", "/tmp/data", ["python", "-m", "api.train_container"], network="none")
             trainer_command = launched.call_args.args[0]
             self.assertNotIn("CODEX_API_KEY", trainer_command)
             self.assertEqual(trainer_command[trainer_command.index("--network") + 1], "none")
+
+    def test_docker_execution_rejects_root_worker(self):
+        with patch.object(self.worker.os, "getuid", return_value=0):
+            with self.assertRaisesRegex(RuntimeError, "non-root"):
+                self.worker.docker_run("agent", "/tmp/work", "/tmp/data", ["codex", "exec"], network="internal")
 
     def test_cover_history_uses_all_dishes_and_rejects_conflicts(self):
         dishes = [{"id": "a", "rows": [{"day": "2026-01-01", "covers": 30}, {"day": "2026-01-03", "covers": 40}]}, {"id": "b", "rows": [{"day": "2026-01-02", "covers": 35}, {"day": "2026-01-03", "covers": 40}]}]

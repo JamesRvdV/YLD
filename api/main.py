@@ -769,14 +769,19 @@ class DishCostsInput(BaseModel):
 class SalesCsvInput(BaseModel):
     csv_text: str = Field(min_length=1, max_length=2_000_000)
     menu_costs: dict[str, DishCostsInput] = Field(default_factory=dict)
+    train: bool = False
     source_mapping: Optional[dict] = None
     source_signature: Optional[str] = Field(default=None, min_length=64, max_length=64)
 
 class SpreadsheetInput(BaseModel):
     filename: str = Field(min_length=5, max_length=200)
     content_base64: str = Field(min_length=1, max_length=5_400_000)
+    use_agent: bool = False
 
 class MappedSpreadsheetInput(SpreadsheetInput):
+    mapping: dict
+
+class MappedMenuSpreadsheetInput(SpreadsheetInput):
     mapping: dict
 
 @app.get("/api/health")
@@ -939,7 +944,7 @@ def inspect_spreadsheet(payload: SpreadsheetInput, user: dict = Depends(require_
         with db() as conn:
             saved = conn.execute("SELECT mapping_json FROM workspace_import_mappings WHERE workspace_id=? AND source_signature=?", (user["workspace_id"], details["signature"])).fetchone()
         mapping, source = fallback, "rules"
-        candidate = json.loads(saved["mapping_json"]) if saved else import_mapping.agent_mapping(details, fallback)
+        candidate = json.loads(saved["mapping_json"]) if saved else import_mapping.agent_mapping(details, fallback) if payload.use_agent else None
         if candidate:
             try:
                 import_mapping.validate_mapping(candidate, import_mapping.tables(payload.filename, content))
@@ -961,11 +966,33 @@ def normalize_spreadsheet(payload: MappedSpreadsheetInput, user: dict = Depends(
     reader = csv.DictReader(io.StringIO(csv_text))
     return {"csv_text": csv_text, "preview": preview, "sample": [row for _, row in zip(range(5), reader)]}
 
+@app.post("/api/import/menu/inspect")
+def inspect_menu_spreadsheet(payload: SpreadsheetInput, user: dict = Depends(require_csrf)):
+    try:
+        content = import_mapping.decode_file(payload.filename, payload.content_base64)
+        details, mapping = import_mapping.describe_menu(payload.filename, content)
+        return {**details, "mapping": mapping}
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+
+@app.post("/api/import/menu/normalize")
+def normalize_menu_spreadsheet(payload: MappedMenuSpreadsheetInput, user: dict = Depends(current_user)):
+    try:
+        content = import_mapping.decode_file(payload.filename, payload.content_base64)
+        menu = import_mapping.normalize_menu(payload.filename, content, payload.mapping)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return {"menu": menu, "items": len(menu)}
+
 @app.post("/api/import/commit")
 def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
     if user["role"] != "owner":
         raise HTTPException(403, "Only the workspace owner can import service history")
     dishes, rows, days = parse_sales_csv(payload.csv_text)
+    if payload.train:
+        missing = [dish["name"] for dish in dishes.values() if dish["id"] not in payload.menu_costs]
+        if missing:
+            raise HTTPException(400, "Menu costs are missing for: " + ", ".join(missing[:5]))
     default_cost_dishes = 0
     for dish in dishes.values():
         override = payload.menu_costs.get(dish["id"])
@@ -987,6 +1014,7 @@ def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
         if len(mapping_json) > 10_000:
             raise HTTPException(400, "Spreadsheet mapping is too large")
     workspace_id = user["workspace_id"]
+    training = {"status": "not_configured"}
     with db() as conn:
         # The worker takes the same row lock before promotion.
         conn.execute("UPDATE workspaces SET data_mode=data_mode WHERE id=?", (workspace_id,))
@@ -1000,9 +1028,18 @@ def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
             conn.execute("INSERT INTO workspace_dishes VALUES (?,?,?,?,?,?,?,?,?)", (workspace_id, dish["id"], dish["name"], dish["category"], dish["price"], dish["ingredient_cost"], baseline, 0, "Imported from sales CSV"))
         conn.executemany("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers,prep_known) VALUES (?,?,?,?,?,?,?,?)", [(workspace_id, row["day"], dishes[row["dish_key"]]["id"], row["sold"], row["prepared"], row["leftover"], row["covers"], row["prep_known"]) for row in rows])
         conn.execute("UPDATE workspaces SET data_mode='imported' WHERE id=?", (workspace_id,))
+        eligible = sum(1 for dish in dishes.values() if sum(1 for row in rows if row["dish_key"] == dish["name"].casefold()) >= MIN_SERVICES)
+        if payload.train and os.getenv("YLD_MODEL_WORKER_ENABLED") == "1" and eligible:
+            job_id = str(uuid.uuid4())
+            latest = conn.execute("SELECT MAX(created_at) AS created_at FROM model_jobs WHERE workspace_id=?", (workspace_id,)).fetchone()
+            created_at = max(int(time.time()), (latest["created_at"] or 0) + 1)
+            conn.execute("INSERT INTO model_jobs(id,workspace_id,status,created_at) VALUES (?,?,?,?)", (job_id, workspace_id, "queued", created_at))
+            training = {"status": "queued", "job_id": job_id}
+        elif payload.train and os.getenv("YLD_MODEL_WORKER_ENABLED") == "1":
+            training = {"status": "not_ready", "required_services": MIN_SERVICES}
         if mapping_json:
             conn.execute("INSERT INTO workspace_import_mappings(workspace_id,source_signature,mapping_json,updated_at) VALUES (?,?,?,?) ON CONFLICT(workspace_id,source_signature) DO UPDATE SET mapping_json=excluded.mapping_json,updated_at=excluded.updated_at", (workspace_id, payload.source_signature, mapping_json, int(time.time())))
-    return {"ok": True, "dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "default_cost_dishes": default_cost_dishes}
+    return {"ok": True, "dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "default_cost_dishes": default_cost_dishes, "training": training}
 
 @app.get("/api/export/history")
 def export_history(user: dict = Depends(current_user)):

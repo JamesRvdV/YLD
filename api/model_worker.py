@@ -46,8 +46,13 @@ def claim_job():
 
 
 def docker_run(image, work, data, args, *, network, key=False, prompt=None, proxy=None, timeout=MAX_RUNTIME):
+    uid, gid = os.getuid(), os.getgid()
+    if uid == 0 or gid == 0:
+        raise RuntimeError("Model worker must run as a non-root account")
     container_name = f"yld-model-{uuid.uuid4().hex}"
-    command = ["docker", "run", "--rm", "--name", container_name, "--init", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=64", "--memory=512m", "--cpus=1", "--user=65534:65534", "--network", network, "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--mount", f"type=bind,src={data},dst=/data,readonly", "--mount", f"type=bind,src={work},dst=/work", "-e", "HOME=/work", "-e", "CODEX_HOME=/work/.codex", "-e", "PYTHONPATH=/opt/yld"]
+    # Match the dedicated host worker so outputs in /work remain writable and
+    # removable after the isolated container exits. Both IDs must stay non-root.
+    command = ["docker", "run", "--rm", "--name", container_name, "--init", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=64", "--memory=512m", "--cpus=1", "--user", f"{uid}:{gid}", "--network", network, "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--mount", f"type=bind,src={data},dst=/data,readonly", "--mount", f"type=bind,src={work},dst=/work", "-e", "HOME=/work", "-e", "CODEX_HOME=/work/.codex", "-e", "PYTHONPATH=/opt/yld"]
     if prompt is not None:
         command.append("-i")
     if key:

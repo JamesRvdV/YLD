@@ -1,0 +1,449 @@
+date,dish,sold,covers,prepared,category
+2026-08-01,Slow-roasted lamb shoulder,10,69,14,MAINS
+2026-08-01,Pan-seared market fish,10,69,11,MAINS
+2026-08-01,Wild mushroom risotto,12,69,13,MAINS
+2026-08-01,Free-range chicken supreme,9,69,13,MAINS
+2026-08-01,Pumpkin sage gnocchi,13,69,16,MAINS
+2026-08-01,Braised beef cheek,11,69,12,MAINS
+2026-08-01,Chargrilled broccolini,20,69,24,SIDES
+2026-08-01,Sticky date pudding,15,69,16,DESSERTS
+2026-08-02,Slow-roasted lamb shoulder,10,50,11,MAINS
+2026-08-02,Pan-seared market fish,7,50,10,MAINS
+2026-08-02,Wild mushroom risotto,7,50,9,MAINS
+2026-08-02,Free-range chicken supreme,5,50,6,MAINS
+2026-08-02,Pumpkin sage gnocchi,10,50,11,MAINS
+2026-08-02,Braised beef cheek,8,50,11,MAINS
+2026-08-02,Chargrilled broccolini,16,50,17,SIDES
+2026-08-02,Sticky date pudding,13,50,14,DESSERTS
+2026-08-03,Slow-roasted lamb shoulder,15,63,16,MAINS
+2026-08-03,Pan-seared market fish,12,63,14,MAINS
+2026-08-03,Wild mushroom risotto,14,63,18,MAINS
+2026-08-03,Free-range chicken supreme,13,63,14,MAINS
+2026-08-03,Pumpkin sage gnocchi,12,63,14,MAINS
+2026-08-03,Braised beef cheek,10,63,14,MAINS
+2026-08-03,Chargrilled broccolini,22,63,25,SIDES
+2026-08-03,Sticky date pudding,19,63,21,DESSERTS
+2026-08-04,Slow-roasted lamb shoulder,12,68,14,MAINS
+2026-08-04,Pan-seared market fish,10,68,11,MAINS
+2026-08-04,Wild mushroom risotto,13,68,14,MAINS
+2026-08-04,Free-range chicken supreme,13,68,16,MAINS
+2026-08-04,Pumpkin sage gnocchi,13,68,14,MAINS
+2026-08-04,Braised beef cheek,4,68,5,MAINS
+2026-08-04,Chargrilled broccolini,18,68,20,SIDES
+2026-08-04,Sticky date pudding,17,68,20,DESSERTS
+2026-08-05,Slow-roasted lamb shoulder,16,72,19,MAINS
+2026-08-05,Pan-seared market fish,8,72,12,MAINS
+2026-08-05,Wild mushroom risotto,12,72,14,MAINS
+2026-08-05,Free-range chicken supreme,13,72,14,MAINS
+2026-08-05,Pumpkin sage gnocchi,13,72,17,MAINS
+2026-08-05,Braised beef cheek,6,72,8,MAINS
+2026-08-05,Chargrilled broccolini,22,72,23,SIDES
+2026-08-05,Sticky date pudding,21,72,25,DESSERTS
+2026-08-06,Slow-roasted lamb shoulder,12,76,13,MAINS
+2026-08-06,Pan-seared market fish,12,76,15,MAINS
+2026-08-06,Wild mushroom risotto,11,76,12,MAINS
+2026-08-06,Free-range chicken supreme,12,76,13,MAINS
+2026-08-06,Pumpkin sage gnocchi,14,76,16,MAINS
+2026-08-06,Braised beef cheek,7,76,10,MAINS
+2026-08-06,Chargrilled broccolini,25,76,26,SIDES
+2026-08-06,Sticky date pudding,18,76,20,DESSERTS
+2026-08-07,Slow-roasted lamb shoulder,18,87,22,MAINS
+2026-08-07,Pan-seared market fish,11,87,12,MAINS
+2026-08-07,Wild mushroom risotto,18,87,21,MAINS
+2026-08-07,Free-range chicken supreme,13,87,17,MAINS
+2026-08-07,Pumpkin sage gnocchi,15,87,16,MAINS
+2026-08-07,Braised beef cheek,12,87,13,MAINS
+2026-08-07,Chargrilled broccolini,23,87,27,SIDES
+2026-08-07,Sticky date pudding,24,87,25,DESSERTS
+2026-08-08,Slow-roasted lamb shoulder,10,71,11,MAINS
+2026-08-08,Pan-seared market fish,13,71,14,MAINS
+2026-08-08,Wild mushroom risotto,13,71,15,MAINS
+2026-08-08,Free-range chicken supreme,9,71,12,MAINS
+2026-08-08,Pumpkin sage gnocchi,13,71,14,MAINS
+2026-08-08,Braised beef cheek,11,71,13,MAINS
+2026-08-08,Chargrilled broccolini,20,71,21,SIDES
+2026-08-08,Sticky date pudding,15,71,18,DESSERTS
+2026-08-09,Slow-roasted lamb shoulder,10,52,13,MAINS
+2026-08-09,Pan-seared market fish,7,52,9,MAINS
+2026-08-09,Wild mushroom risotto,7,52,11,MAINS
+2026-08-09,Free-range chicken supreme,5,52,6,MAINS
+2026-08-09,Pumpkin sage gnocchi,10,52,13,MAINS
+2026-08-09,Braised beef cheek,8,52,12,MAINS
+2026-08-09,Chargrilled broccolini,17,52,18,SIDES
+2026-08-09,Sticky date pudding,14,52,16,DESSERTS
+2026-08-10,Slow-roasted lamb shoulder,14,56,16,MAINS
+2026-08-10,Pan-seared market fish,11,56,14,MAINS
+2026-08-10,Wild mushroom risotto,13,56,14,MAINS
+2026-08-10,Free-range chicken supreme,12,56,14,MAINS
+2026-08-10,Pumpkin sage gnocchi,11,56,12,MAINS
+2026-08-10,Braised beef cheek,9,56,12,MAINS
+2026-08-10,Chargrilled broccolini,20,56,22,SIDES
+2026-08-10,Sticky date pudding,18,56,19,DESSERTS
+2026-08-11,Slow-roasted lamb shoulder,11,61,12,MAINS
+2026-08-11,Pan-seared market fish,9,61,13,MAINS
+2026-08-11,Wild mushroom risotto,12,61,15,MAINS
+2026-08-11,Free-range chicken supreme,12,61,13,MAINS
+2026-08-11,Pumpkin sage gnocchi,12,61,16,MAINS
+2026-08-11,Braised beef cheek,4,61,6,MAINS
+2026-08-11,Chargrilled broccolini,16,61,19,SIDES
+2026-08-11,Sticky date pudding,15,61,19,DESSERTS
+2026-08-12,Slow-roasted lamb shoulder,16,74,17,MAINS
+2026-08-12,Pan-seared market fish,6,74,8,MAINS
+2026-08-12,Wild mushroom risotto,12,74,13,MAINS
+2026-08-12,Free-range chicken supreme,13,74,16,MAINS
+2026-08-12,Pumpkin sage gnocchi,13,74,15,MAINS
+2026-08-12,Braised beef cheek,6,74,7,MAINS
+2026-08-12,Chargrilled broccolini,22,74,23,SIDES
+2026-08-12,Sticky date pudding,21,74,24,DESSERTS
+2026-08-13,Slow-roasted lamb shoulder,13,78,17,MAINS
+2026-08-13,Pan-seared market fish,13,78,14,MAINS
+2026-08-13,Wild mushroom risotto,11,78,12,MAINS
+2026-08-13,Free-range chicken supreme,12,78,16,MAINS
+2026-08-13,Pumpkin sage gnocchi,14,78,17,MAINS
+2026-08-13,Braised beef cheek,8,78,9,MAINS
+2026-08-13,Chargrilled broccolini,25,78,29,SIDES
+2026-08-13,Sticky date pudding,18,78,19,DESSERTS
+2026-08-14,Slow-roasted lamb shoulder,18,89,19,MAINS
+2026-08-14,Pan-seared market fish,11,89,14,MAINS
+2026-08-14,Wild mushroom risotto,18,89,20,MAINS
+2026-08-14,Free-range chicken supreme,13,89,14,MAINS
+2026-08-14,Pumpkin sage gnocchi,15,89,16,MAINS
+2026-08-14,Braised beef cheek,12,89,15,MAINS
+2026-08-14,Chargrilled broccolini,24,89,25,SIDES
+2026-08-14,Sticky date pudding,24,89,25,DESSERTS
+2026-08-15,Slow-roasted lamb shoulder,11,73,12,MAINS
+2026-08-15,Pan-seared market fish,13,73,15,MAINS
+2026-08-15,Wild mushroom risotto,13,73,17,MAINS
+2026-08-15,Free-range chicken supreme,10,73,11,MAINS
+2026-08-15,Pumpkin sage gnocchi,13,73,15,MAINS
+2026-08-15,Braised beef cheek,11,73,15,MAINS
+2026-08-15,Chargrilled broccolini,21,73,24,SIDES
+2026-08-15,Sticky date pudding,16,73,18,DESSERTS
+2026-08-16,Slow-roasted lamb shoulder,10,54,12,MAINS
+2026-08-16,Pan-seared market fish,7,54,8,MAINS
+2026-08-16,Wild mushroom risotto,8,54,9,MAINS
+2026-08-16,Free-range chicken supreme,6,54,9,MAINS
+2026-08-16,Pumpkin sage gnocchi,11,54,12,MAINS
+2026-08-16,Braised beef cheek,8,54,9,MAINS
+2026-08-16,Chargrilled broccolini,17,54,19,SIDES
+2026-08-16,Sticky date pudding,14,54,17,DESSERTS
+2026-08-17,Slow-roasted lamb shoulder,14,58,17,MAINS
+2026-08-17,Pan-seared market fish,12,58,16,MAINS
+2026-08-17,Wild mushroom risotto,13,58,15,MAINS
+2026-08-17,Free-range chicken supreme,12,58,13,MAINS
+2026-08-17,Pumpkin sage gnocchi,11,58,15,MAINS
+2026-08-17,Braised beef cheek,9,58,11,MAINS
+2026-08-17,Chargrilled broccolini,20,58,21,SIDES
+2026-08-17,Sticky date pudding,18,58,22,DESSERTS
+2026-08-18,Slow-roasted lamb shoulder,11,63,12,MAINS
+2026-08-18,Pan-seared market fish,9,63,12,MAINS
+2026-08-18,Wild mushroom risotto,12,63,13,MAINS
+2026-08-18,Free-range chicken supreme,12,63,13,MAINS
+2026-08-18,Pumpkin sage gnocchi,12,63,14,MAINS
+2026-08-18,Braised beef cheek,4,63,7,MAINS
+2026-08-18,Chargrilled broccolini,17,63,18,SIDES
+2026-08-18,Sticky date pudding,15,63,17,DESSERTS
+2026-08-19,Slow-roasted lamb shoulder,15,67,19,MAINS
+2026-08-19,Pan-seared market fish,7,67,8,MAINS
+2026-08-19,Wild mushroom risotto,11,67,14,MAINS
+2026-08-19,Free-range chicken supreme,12,67,16,MAINS
+2026-08-19,Pumpkin sage gnocchi,12,67,13,MAINS
+2026-08-19,Braised beef cheek,5,67,6,MAINS
+2026-08-19,Chargrilled broccolini,20,67,24,SIDES
+2026-08-19,Sticky date pudding,19,67,20,DESSERTS
+2026-08-20,Slow-roasted lamb shoulder,11,71,12,MAINS
+2026-08-20,Pan-seared market fish,12,71,13,MAINS
+2026-08-20,Wild mushroom risotto,10,71,12,MAINS
+2026-08-20,Free-range chicken supreme,11,71,14,MAINS
+2026-08-20,Pumpkin sage gnocchi,13,71,14,MAINS
+2026-08-20,Braised beef cheek,7,71,9,MAINS
+2026-08-20,Chargrilled broccolini,23,71,24,SIDES
+2026-08-20,Sticky date pudding,16,71,19,DESSERTS
+2026-08-21,Slow-roasted lamb shoulder,18,91,21,MAINS
+2026-08-21,Pan-seared market fish,12,91,14,MAINS
+2026-08-21,Wild mushroom risotto,18,91,22,MAINS
+2026-08-21,Free-range chicken supreme,14,91,15,MAINS
+2026-08-21,Pumpkin sage gnocchi,16,91,19,MAINS
+2026-08-21,Braised beef cheek,12,91,16,MAINS
+2026-08-21,Chargrilled broccolini,24,91,25,SIDES
+2026-08-21,Sticky date pudding,25,91,27,DESSERTS
+2026-08-22,Slow-roasted lamb shoulder,11,75,13,MAINS
+2026-08-22,Pan-seared market fish,13,75,16,MAINS
+2026-08-22,Wild mushroom risotto,14,75,15,MAINS
+2026-08-22,Free-range chicken supreme,10,75,12,MAINS
+2026-08-22,Pumpkin sage gnocchi,14,75,15,MAINS
+2026-08-22,Braised beef cheek,11,75,14,MAINS
+2026-08-22,Chargrilled broccolini,22,75,24,SIDES
+2026-08-22,Sticky date pudding,17,75,18,DESSERTS
+2026-08-23,Slow-roasted lamb shoulder,11,56,12,MAINS
+2026-08-23,Pan-seared market fish,5,56,9,MAINS
+2026-08-23,Wild mushroom risotto,8,56,11,MAINS
+2026-08-23,Free-range chicken supreme,6,56,7,MAINS
+2026-08-23,Pumpkin sage gnocchi,11,56,15,MAINS
+2026-08-23,Braised beef cheek,8,56,10,MAINS
+2026-08-23,Chargrilled broccolini,18,56,21,SIDES
+2026-08-23,Sticky date pudding,15,56,19,DESSERTS
+2026-08-24,Slow-roasted lamb shoulder,14,60,15,MAINS
+2026-08-24,Pan-seared market fish,12,60,14,MAINS
+2026-08-24,Wild mushroom risotto,14,60,15,MAINS
+2026-08-24,Free-range chicken supreme,13,60,16,MAINS
+2026-08-24,Pumpkin sage gnocchi,11,60,13,MAINS
+2026-08-24,Braised beef cheek,10,60,11,MAINS
+2026-08-24,Chargrilled broccolini,21,60,22,SIDES
+2026-08-24,Sticky date pudding,19,60,22,DESSERTS
+2026-08-25,Slow-roasted lamb shoulder,11,65,15,MAINS
+2026-08-25,Pan-seared market fish,10,65,11,MAINS
+2026-08-25,Wild mushroom risotto,13,65,14,MAINS
+2026-08-25,Free-range chicken supreme,12,65,16,MAINS
+2026-08-25,Pumpkin sage gnocchi,12,65,15,MAINS
+2026-08-25,Braised beef cheek,4,65,5,MAINS
+2026-08-25,Chargrilled broccolini,18,65,22,SIDES
+2026-08-25,Sticky date pudding,16,65,17,DESSERTS
+2026-08-26,Slow-roasted lamb shoulder,15,69,16,MAINS
+2026-08-26,Pan-seared market fish,7,69,10,MAINS
+2026-08-26,Wild mushroom risotto,11,69,13,MAINS
+2026-08-26,Free-range chicken supreme,12,69,13,MAINS
+2026-08-26,Pumpkin sage gnocchi,13,69,14,MAINS
+2026-08-26,Braised beef cheek,6,69,9,MAINS
+2026-08-26,Chargrilled broccolini,21,69,22,SIDES
+2026-08-26,Sticky date pudding,20,69,21,DESSERTS
+2026-08-27,Slow-roasted lamb shoulder,12,73,13,MAINS
+2026-08-27,Pan-seared market fish,12,73,14,MAINS
+2026-08-27,Wild mushroom risotto,10,73,14,MAINS
+2026-08-27,Free-range chicken supreme,12,73,13,MAINS
+2026-08-27,Pumpkin sage gnocchi,13,73,15,MAINS
+2026-08-27,Braised beef cheek,7,73,11,MAINS
+2026-08-27,Chargrilled broccolini,24,73,27,SIDES
+2026-08-27,Sticky date pudding,17,73,19,DESSERTS
+2026-08-28,Slow-roasted lamb shoulder,17,84,19,MAINS
+2026-08-28,Pan-seared market fish,11,84,12,MAINS
+2026-08-28,Wild mushroom risotto,17,84,18,MAINS
+2026-08-28,Free-range chicken supreme,12,84,15,MAINS
+2026-08-28,Pumpkin sage gnocchi,15,84,16,MAINS
+2026-08-28,Braised beef cheek,11,84,12,MAINS
+2026-08-28,Chargrilled broccolini,22,84,24,SIDES
+2026-08-28,Sticky date pudding,23,84,26,DESSERTS
+2026-08-29,Slow-roasted lamb shoulder,10,68,13,MAINS
+2026-08-29,Pan-seared market fish,12,68,16,MAINS
+2026-08-29,Wild mushroom risotto,12,68,14,MAINS
+2026-08-29,Free-range chicken supreme,9,68,10,MAINS
+2026-08-29,Pumpkin sage gnocchi,13,68,17,MAINS
+2026-08-29,Braised beef cheek,10,68,12,MAINS
+2026-08-29,Chargrilled broccolini,19,68,20,SIDES
+2026-08-29,Sticky date pudding,15,68,19,DESSERTS
+2026-08-30,Slow-roasted lamb shoulder,11,58,12,MAINS
+2026-08-30,Pan-seared market fish,8,58,11,MAINS
+2026-08-30,Wild mushroom risotto,8,58,9,MAINS
+2026-08-30,Free-range chicken supreme,6,58,7,MAINS
+2026-08-30,Pumpkin sage gnocchi,11,58,13,MAINS
+2026-08-30,Braised beef cheek,8,58,11,MAINS
+2026-08-30,Chargrilled broccolini,18,58,19,SIDES
+2026-08-30,Sticky date pudding,15,58,17,DESSERTS
+2026-08-31,Slow-roasted lamb shoulder,15,62,19,MAINS
+2026-08-31,Pan-seared market fish,12,62,13,MAINS
+2026-08-31,Wild mushroom risotto,14,62,17,MAINS
+2026-08-31,Free-range chicken supreme,13,62,17,MAINS
+2026-08-31,Pumpkin sage gnocchi,12,62,13,MAINS
+2026-08-31,Braised beef cheek,10,62,11,MAINS
+2026-08-31,Chargrilled broccolini,22,62,26,SIDES
+2026-08-31,Sticky date pudding,19,62,20,DESSERTS
+2026-09-01,Slow-roasted lamb shoulder,11,63,12,MAINS
+2026-09-01,Pan-seared market fish,9,63,10,MAINS
+2026-09-01,Wild mushroom risotto,12,63,14,MAINS
+2026-09-01,Free-range chicken supreme,12,63,15,MAINS
+2026-09-01,Pumpkin sage gnocchi,12,63,13,MAINS
+2026-09-01,Braised beef cheek,4,63,6,MAINS
+2026-09-01,Chargrilled broccolini,17,63,18,SIDES
+2026-09-01,Sticky date pudding,15,63,18,DESSERTS
+2026-09-02,Slow-roasted lamb shoulder,15,67,18,MAINS
+2026-09-02,Pan-seared market fish,7,67,9,MAINS
+2026-09-02,Wild mushroom risotto,11,67,15,MAINS
+2026-09-02,Free-range chicken supreme,12,67,13,MAINS
+2026-09-02,Pumpkin sage gnocchi,12,67,15,MAINS
+2026-09-02,Braised beef cheek,5,67,9,MAINS
+2026-09-02,Chargrilled broccolini,20,67,21,SIDES
+2026-09-02,Sticky date pudding,19,67,21,DESSERTS
+2026-09-03,Slow-roasted lamb shoulder,11,71,13,MAINS
+2026-09-03,Pan-seared market fish,10,71,13,MAINS
+2026-09-03,Wild mushroom risotto,10,71,11,MAINS
+2026-09-03,Free-range chicken supreme,11,71,13,MAINS
+2026-09-03,Pumpkin sage gnocchi,13,71,14,MAINS
+2026-09-03,Braised beef cheek,7,71,10,MAINS
+2026-09-03,Chargrilled broccolini,23,71,25,SIDES
+2026-09-03,Sticky date pudding,16,71,17,DESSERTS
+2026-09-04,Slow-roasted lamb shoulder,18,91,19,MAINS
+2026-09-04,Pan-seared market fish,12,91,16,MAINS
+2026-09-04,Wild mushroom risotto,18,91,21,MAINS
+2026-09-04,Free-range chicken supreme,14,91,15,MAINS
+2026-09-04,Pumpkin sage gnocchi,16,91,20,MAINS
+2026-09-04,Braised beef cheek,12,91,14,MAINS
+2026-09-04,Chargrilled broccolini,24,91,27,SIDES
+2026-09-04,Sticky date pudding,25,91,29,DESSERTS
+2026-09-05,Slow-roasted lamb shoulder,12,78,13,MAINS
+2026-09-05,Pan-seared market fish,14,78,16,MAINS
+2026-09-05,Wild mushroom risotto,14,78,15,MAINS
+2026-09-05,Free-range chicken supreme,10,78,13,MAINS
+2026-09-05,Pumpkin sage gnocchi,14,78,16,MAINS
+2026-09-05,Braised beef cheek,12,78,13,MAINS
+2026-09-05,Chargrilled broccolini,22,78,23,SIDES
+2026-09-05,Sticky date pudding,17,78,20,DESSERTS
+2026-09-06,Slow-roasted lamb shoulder,11,59,15,MAINS
+2026-09-06,Pan-seared market fish,8,59,9,MAINS
+2026-09-06,Wild mushroom risotto,9,59,10,MAINS
+2026-09-06,Free-range chicken supreme,6,59,10,MAINS
+2026-09-06,Pumpkin sage gnocchi,11,59,14,MAINS
+2026-09-06,Braised beef cheek,8,59,9,MAINS
+2026-09-06,Chargrilled broccolini,19,59,23,SIDES
+2026-09-06,Sticky date pudding,15,59,16,DESSERTS
+2026-09-07,Slow-roasted lamb shoulder,15,63,16,MAINS
+2026-09-07,Pan-seared market fish,12,63,15,MAINS
+2026-09-07,Wild mushroom risotto,14,63,16,MAINS
+2026-09-07,Free-range chicken supreme,13,63,14,MAINS
+2026-09-07,Pumpkin sage gnocchi,12,63,13,MAINS
+2026-09-07,Braised beef cheek,10,63,13,MAINS
+2026-09-07,Chargrilled broccolini,22,63,23,SIDES
+2026-09-07,Sticky date pudding,19,63,20,DESSERTS
+2026-09-08,Slow-roasted lamb shoulder,12,68,13,MAINS
+2026-09-08,Pan-seared market fish,10,68,12,MAINS
+2026-09-08,Wild mushroom risotto,13,68,17,MAINS
+2026-09-08,Free-range chicken supreme,13,68,14,MAINS
+2026-09-08,Pumpkin sage gnocchi,13,68,15,MAINS
+2026-09-08,Braised beef cheek,4,68,8,MAINS
+2026-09-08,Chargrilled broccolini,18,68,21,SIDES
+2026-09-08,Sticky date pudding,17,68,19,DESSERTS
+2026-09-09,Slow-roasted lamb shoulder,16,72,18,MAINS
+2026-09-09,Pan-seared market fish,8,72,9,MAINS
+2026-09-09,Wild mushroom risotto,12,72,13,MAINS
+2026-09-09,Free-range chicken supreme,13,72,16,MAINS
+2026-09-09,Pumpkin sage gnocchi,13,72,14,MAINS
+2026-09-09,Braised beef cheek,6,72,7,MAINS
+2026-09-09,Chargrilled broccolini,22,72,24,SIDES
+2026-09-09,Sticky date pudding,21,72,24,DESSERTS
+2026-09-10,Slow-roasted lamb shoulder,12,76,15,MAINS
+2026-09-10,Pan-seared market fish,12,76,16,MAINS
+2026-09-10,Wild mushroom risotto,11,76,13,MAINS
+2026-09-10,Free-range chicken supreme,12,76,13,MAINS
+2026-09-10,Pumpkin sage gnocchi,14,76,18,MAINS
+2026-09-10,Braised beef cheek,7,76,9,MAINS
+2026-09-10,Chargrilled broccolini,25,76,26,SIDES
+2026-09-10,Sticky date pudding,18,76,22,DESSERTS
+2026-09-11,Slow-roasted lamb shoulder,18,87,19,MAINS
+2026-09-11,Pan-seared market fish,11,87,14,MAINS
+2026-09-11,Wild mushroom risotto,18,87,19,MAINS
+2026-09-11,Free-range chicken supreme,13,87,14,MAINS
+2026-09-11,Pumpkin sage gnocchi,15,87,17,MAINS
+2026-09-11,Braised beef cheek,12,87,15,MAINS
+2026-09-11,Chargrilled broccolini,23,87,24,SIDES
+2026-09-11,Sticky date pudding,24,87,26,DESSERTS
+2026-09-12,Slow-roasted lamb shoulder,10,71,14,MAINS
+2026-09-12,Pan-seared market fish,13,71,14,MAINS
+2026-09-12,Wild mushroom risotto,13,71,16,MAINS
+2026-09-12,Free-range chicken supreme,9,71,13,MAINS
+2026-09-12,Pumpkin sage gnocchi,13,71,14,MAINS
+2026-09-12,Braised beef cheek,11,71,12,MAINS
+2026-09-12,Chargrilled broccolini,20,71,24,SIDES
+2026-09-12,Sticky date pudding,15,71,16,DESSERTS
+2026-09-13,Slow-roasted lamb shoulder,12,61,13,MAINS
+2026-09-13,Pan-seared market fish,8,61,9,MAINS
+2026-09-13,Wild mushroom risotto,9,61,11,MAINS
+2026-09-13,Free-range chicken supreme,7,61,10,MAINS
+2026-09-13,Pumpkin sage gnocchi,12,61,13,MAINS
+2026-09-13,Braised beef cheek,9,61,11,MAINS
+2026-09-13,Chargrilled broccolini,19,61,20,SIDES
+2026-09-13,Sticky date pudding,16,61,19,DESSERTS
+2026-09-14,Slow-roasted lamb shoulder,15,65,18,MAINS
+2026-09-14,Pan-seared market fish,11,65,13,MAINS
+2026-09-14,Wild mushroom risotto,15,65,19,MAINS
+2026-09-14,Free-range chicken supreme,13,65,14,MAINS
+2026-09-14,Pumpkin sage gnocchi,12,65,15,MAINS
+2026-09-14,Braised beef cheek,10,65,14,MAINS
+2026-09-14,Chargrilled broccolini,23,65,24,SIDES
+2026-09-14,Sticky date pudding,20,65,22,DESSERTS
+2026-09-15,Slow-roasted lamb shoulder,12,70,14,MAINS
+2026-09-15,Pan-seared market fish,11,70,14,MAINS
+2026-09-15,Wild mushroom risotto,14,70,15,MAINS
+2026-09-15,Free-range chicken supreme,13,70,15,MAINS
+2026-09-15,Pumpkin sage gnocchi,13,70,14,MAINS
+2026-09-15,Braised beef cheek,5,70,8,MAINS
+2026-09-15,Chargrilled broccolini,19,70,21,SIDES
+2026-09-15,Sticky date pudding,17,70,18,DESSERTS
+2026-09-16,Slow-roasted lamb shoulder,16,74,17,MAINS
+2026-09-16,Pan-seared market fish,8,74,12,MAINS
+2026-09-16,Wild mushroom risotto,12,74,15,MAINS
+2026-09-16,Free-range chicken supreme,13,74,14,MAINS
+2026-09-16,Pumpkin sage gnocchi,13,74,17,MAINS
+2026-09-16,Braised beef cheek,6,74,8,MAINS
+2026-09-16,Chargrilled broccolini,22,74,25,SIDES
+2026-09-16,Sticky date pudding,21,74,25,DESSERTS
+2026-09-17,Slow-roasted lamb shoulder,13,78,14,MAINS
+2026-09-17,Pan-seared market fish,13,78,15,MAINS
+2026-09-17,Wild mushroom risotto,11,78,12,MAINS
+2026-09-17,Free-range chicken supreme,12,78,15,MAINS
+2026-09-17,Pumpkin sage gnocchi,14,78,16,MAINS
+2026-09-17,Braised beef cheek,8,78,9,MAINS
+2026-09-17,Chargrilled broccolini,25,78,26,SIDES
+2026-09-17,Sticky date pudding,18,78,21,DESSERTS
+2026-09-18,Slow-roasted lamb shoulder,18,89,22,MAINS
+2026-09-18,Pan-seared market fish,11,89,12,MAINS
+2026-09-18,Wild mushroom risotto,18,89,19,MAINS
+2026-09-18,Free-range chicken supreme,13,89,17,MAINS
+2026-09-18,Pumpkin sage gnocchi,15,89,18,MAINS
+2026-09-18,Braised beef cheek,12,89,13,MAINS
+2026-09-18,Chargrilled broccolini,24,89,28,SIDES
+2026-09-18,Sticky date pudding,24,89,25,DESSERTS
+2026-09-19,Slow-roasted lamb shoulder,11,73,12,MAINS
+2026-09-19,Pan-seared market fish,13,73,16,MAINS
+2026-09-19,Wild mushroom risotto,13,73,15,MAINS
+2026-09-19,Free-range chicken supreme,10,73,11,MAINS
+2026-09-19,Pumpkin sage gnocchi,13,73,14,MAINS
+2026-09-19,Braised beef cheek,11,73,14,MAINS
+2026-09-19,Chargrilled broccolini,21,73,22,SIDES
+2026-09-19,Sticky date pudding,16,73,17,DESSERTS
+2026-09-20,Slow-roasted lamb shoulder,10,54,11,MAINS
+2026-09-20,Pan-seared market fish,7,54,9,MAINS
+2026-09-20,Wild mushroom risotto,8,54,12,MAINS
+2026-09-20,Free-range chicken supreme,6,54,7,MAINS
+2026-09-20,Pumpkin sage gnocchi,11,54,13,MAINS
+2026-09-20,Braised beef cheek,8,54,12,MAINS
+2026-09-20,Chargrilled broccolini,17,54,20,SIDES
+2026-09-20,Sticky date pudding,14,54,16,DESSERTS
+2026-09-21,Slow-roasted lamb shoulder,14,58,16,MAINS
+2026-09-21,Pan-seared market fish,12,58,13,MAINS
+2026-09-21,Wild mushroom risotto,13,58,14,MAINS
+2026-09-21,Free-range chicken supreme,12,58,15,MAINS
+2026-09-21,Pumpkin sage gnocchi,11,58,12,MAINS
+2026-09-21,Braised beef cheek,9,58,10,MAINS
+2026-09-21,Chargrilled broccolini,20,58,22,SIDES
+2026-09-21,Sticky date pudding,18,58,21,DESSERTS
+2026-09-22,Slow-roasted lamb shoulder,13,72,16,MAINS
+2026-09-22,Pan-seared market fish,11,72,15,MAINS
+2026-09-22,Wild mushroom risotto,14,72,16,MAINS
+2026-09-22,Free-range chicken supreme,14,72,15,MAINS
+2026-09-22,Pumpkin sage gnocchi,13,72,17,MAINS
+2026-09-22,Braised beef cheek,5,72,7,MAINS
+2026-09-22,Chargrilled broccolini,20,72,21,SIDES
+2026-09-22,Sticky date pudding,18,72,22,DESSERTS
+2026-09-23,Slow-roasted lamb shoulder,16,76,17,MAINS
+2026-09-23,Pan-seared market fish,8,76,11,MAINS
+2026-09-23,Wild mushroom risotto,13,76,14,MAINS
+2026-09-23,Free-range chicken supreme,13,76,14,MAINS
+2026-09-23,Pumpkin sage gnocchi,14,76,16,MAINS
+2026-09-23,Braised beef cheek,6,76,9,MAINS
+2026-09-23,Chargrilled broccolini,23,76,24,SIDES
+2026-09-23,Sticky date pudding,22,76,24,DESSERTS
+2026-09-24,Slow-roasted lamb shoulder,13,80,17,MAINS
+2026-09-24,Pan-seared market fish,13,80,14,MAINS
+2026-09-24,Wild mushroom risotto,11,80,14,MAINS
+2026-09-24,Free-range chicken supreme,13,80,17,MAINS
+2026-09-24,Pumpkin sage gnocchi,14,80,15,MAINS
+2026-09-24,Braised beef cheek,8,80,9,MAINS
+2026-09-24,Chargrilled broccolini,26,80,30,SIDES
+2026-09-24,Sticky date pudding,19,80,20,DESSERTS
+2026-09-25,Slow-roasted lamb shoulder,18,91,19,MAINS
+2026-09-25,Pan-seared market fish,10,91,11,MAINS
+2026-09-25,Wild mushroom risotto,18,91,20,MAINS
+2026-09-25,Free-range chicken supreme,14,91,17,MAINS
+2026-09-25,Pumpkin sage gnocchi,16,91,17,MAINS
+2026-09-25,Braised beef cheek,12,91,14,MAINS
+2026-09-25,Chargrilled broccolini,24,91,25,SIDES
+2026-09-25,Sticky date pudding,25,91,28,DESSERTS

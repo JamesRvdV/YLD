@@ -62,6 +62,29 @@ class MappingConversionTest(unittest.TestCase):
         self.assertEqual([(row["date"], row["dish"], row["sold"]) for row in rows],
                          [("2025-09-25", "Soup", "4"), ("2025-09-25", "Steak", "8"), ("2025-09-26", "Soup", "5")])
 
+    def test_menu_sheet_maps_item_cost_and_price(self):
+        content = b"Menu item,Food cost,Selling price,Course\nSoup,3.50,14.00,Starters\n"
+        details, mapping = import_mapping.describe_menu("menu.csv", content)
+        self.assertEqual(details["sheets"][0]["name"], "CSV")
+        self.assertEqual(mapping["columns"]["dish"], "Menu item")
+        menu = import_mapping.normalize_menu("menu.csv", content, mapping)
+        self.assertEqual(menu, [{"name": "Soup", "ingredient_cost": "3.50", "price": "14.00", "category": "Starters"}])
+
+    def test_menu_header_detection_ignores_sales_report_columns(self):
+        workbook = Workbook()
+        report = workbook.active
+        report.title = "Sales"
+        report.append(["Date", "Dish", "Sold", "Covers"])
+        report.append(["2025-09-25", "Soup", 4, 30])
+        menu = workbook.create_sheet("Menu")
+        menu.append(["Menu export"])
+        menu.append(["Menu item", "Food cost", "Selling price"])
+        menu.append(["Soup", 3.5, 14])
+        output = io.BytesIO()
+        workbook.save(output)
+        _, mapping = import_mapping.describe_menu("kitchen.xlsx", output.getvalue())
+        self.assertEqual((mapping["sheet"], mapping["header_row"]), ("Menu", 2))
+
     def test_missing_covers_and_unknown_headers_are_rejected(self):
         content = b"Date,Item,Qty\n2025-09-25,Soup,4\n"
         _, mapping = import_mapping.describe("sales.csv", content)
@@ -100,8 +123,14 @@ class MappingPersistenceTest(unittest.TestCase):
                 user = {"workspace_id": "workspace-one", "data_mode": "empty", "role": "owner"}
                 content = b"Trading Day,Menu Item,Qty,Pax\n2025-09-25,Soup,4,30\n"
                 payload = module.SpreadsheetInput(filename="sales.csv", content_base64=base64.b64encode(content).decode())
-                inspected = module.inspect_spreadsheet(payload, user)
+                with patch.object(import_mapping, "agent_mapping") as agent:
+                    inspected = module.inspect_spreadsheet(payload, user)
+                    agent.assert_not_called()
                 self.assertEqual(inspected["mapping_source"], "rules")
+                with patch.object(import_mapping, "agent_mapping", return_value=inspected["mapping"]) as agent:
+                    opted_in = module.inspect_spreadsheet(module.SpreadsheetInput(**{**payload.model_dump(), "use_agent": True}), user)
+                    agent.assert_called_once()
+                    self.assertEqual(opted_in["mapping_source"], "agent")
                 mapped = module.MappedSpreadsheetInput(**payload.model_dump(), mapping=inspected["mapping"])
                 normalized = module.normalize_spreadsheet(mapped, user)
                 self.assertEqual(normalized["preview"]["rows"], 1)
