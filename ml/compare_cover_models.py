@@ -12,7 +12,10 @@ from pathlib import Path
 import joblib
 from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor, RandomForestRegressor
 
-from cover_baseline import DATA_PATH, FEATURES, features, fit, load_services, predict, score
+if __package__:
+    from .cover_baseline import DATA_PATH, FEATURES, features, fit, load_services, predict, score
+else:
+    from cover_baseline import DATA_PATH, FEATURES, features, fit, load_services, predict, score
 
 
 ARTIFACT_PATH = Path(__file__).parent / "cover_tree_model.joblib"

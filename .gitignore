@@ -6,5 +6,6 @@ __pycache__
 *.db
 .env
 *.tsbuildinfo
+.DS_Store
 .vercel
 .env*

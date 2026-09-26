@@ -29,6 +29,8 @@ from urllib.request import Request as UrlRequest, urlopen
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from api.modeling import MIN_SERVICES, cover_estimate, predict as predict_trained, supported as trained_supported, validate_artifact
+from api import import_mapping
 
 DB_PATH = Path(os.getenv("YLD_DB_PATH", Path(__file__).parent / "yld.db"))
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -118,9 +120,19 @@ def init_db():
         CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
         CREATE TABLE IF NOT EXISTS workspace_billing (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id), stripe_customer_id TEXT NOT NULL UNIQUE, stripe_subscription_id TEXT NOT NULL UNIQUE, plan TEXT NOT NULL CHECK(plan IN ('local','multi_chain')), status TEXT NOT NULL, last_event_created INTEGER NOT NULL, updated_at INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS workspace_checkout (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id), plan TEXT NOT NULL CHECK(plan IN ('local','multi_chain')), idempotency_key TEXT NOT NULL, session_id TEXT, session_url TEXT, expires_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS waitlist_signups (email TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS model_jobs (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), status TEXT NOT NULL, stage TEXT NOT NULL DEFAULT 'queued', created_at INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER, data_hash TEXT, reason TEXT, metrics_json TEXT);
+        CREATE INDEX IF NOT EXISTS model_jobs_workspace ON model_jobs(workspace_id,created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS model_jobs_one_pending ON model_jobs(workspace_id) WHERE status IN ('queued','running');
+        CREATE TABLE IF NOT EXISTS model_versions (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), status TEXT NOT NULL, artifact_json TEXT NOT NULL, metrics_json TEXT NOT NULL, data_hash TEXT NOT NULL, created_at INTEGER NOT NULL, activated_at INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS model_versions_workspace ON model_versions(workspace_id,status,created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS model_versions_one_active ON model_versions(workspace_id) WHERE status='active';
+        CREATE TABLE IF NOT EXISTS workspace_import_mappings (workspace_id TEXT NOT NULL REFERENCES workspaces(id), source_signature TEXT NOT NULL, mapping_json TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(workspace_id,source_signature));
         """)
         if "data_mode" not in {row[1] for row in conn.execute("PRAGMA table_info(workspaces)")}:
             conn.execute("ALTER TABLE workspaces ADD COLUMN data_mode TEXT NOT NULL DEFAULT 'empty'")
+        if "stage" not in {row[1] for row in conn.execute("PRAGMA table_info(model_jobs)")}:
+            conn.execute("ALTER TABLE model_jobs ADD COLUMN stage TEXT NOT NULL DEFAULT 'queued'")
         account_columns = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
         if "password_hash" not in account_columns:
             conn.execute("ALTER TABLE accounts ADD COLUMN password_hash TEXT")
@@ -283,7 +295,7 @@ def send_link_email(email: str, workspace_name: str, link: str, kind: str, link_
     request = UrlRequest(
         "https://api.resend.com/emails",
         data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "Idempotency-Key": link_id},
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": f"YLD/1.0 (+{PUBLIC_URL})", "Idempotency-Key": link_id},
         method="POST",
     )
     try:
@@ -542,6 +554,32 @@ async def billing_webhook(request: Request):
 def history(conn, workspace_id: str, dish_id: str):
     return [dict(r) for r in conn.execute("SELECT * FROM workspace_history WHERE workspace_id=? AND dish_id=? ORDER BY day", (workspace_id, dish_id))]
 
+def service_summary(conn, workspace_id: str, service_day: date):
+    """Roll up the actuals logged for one service without requiring a new table."""
+    rows = [dict(row) for row in conn.execute("""SELECT d.id,d.name,d.ingredient_cost,
+        h.covers,h.prepared,h.sold,h.leftover,h.prep_known
+        FROM workspace_dishes d
+        LEFT JOIN workspace_history h ON h.workspace_id=d.workspace_id AND h.dish_id=d.id AND h.day=?
+        WHERE d.workspace_id=? ORDER BY d.name""", (service_day.isoformat(), workspace_id))]
+    logged = [row for row in rows if row["prep_known"]]
+    covers = next((row["covers"] for row in logged if row["covers"] is not None), None)
+    prepared = sum(row["prepared"] for row in logged)
+    sold = sum(row["sold"] for row in logged)
+    leftovers = sum(row["leftover"] for row in logged)
+    ingredient_waste = sum(row["leftover"] * row["ingredient_cost"] for row in logged)
+    return {
+        "day": service_day.isoformat(),
+        "covers": covers,
+        "total_dishes": len(rows),
+        "logged_dishes": len(logged),
+        "complete": bool(rows) and len(logged) == len(rows),
+        "prepared": prepared,
+        "sold": sold,
+        "leftovers": leftovers,
+        "ingredient_waste": round(ingredient_waste, 2),
+        "dishes": [{"id": row["id"], "name": row["name"], "prepared": row["prepared"], "sold": row["sold"], "leftover": row["leftover"]} for row in logged],
+    }
+
 def solve_ridge(samples, outcomes, weights, penalty=2.0):
     """Small weighted ridge fit, solved by pivoted Gaussian elimination."""
     size = len(samples[0])
@@ -591,20 +629,7 @@ def forecast_covers(conn, workspace_id, target_day):
         "SELECT day, ROUND(AVG(covers)) AS covers FROM workspace_history WHERE workspace_id=? AND day < ? GROUP BY day ORDER BY day",
         (workspace_id, target_day.isoformat()),
     )]
-    service_days = len(services)
-    if service_days < 14:
-        return None, service_days
-    recent = services[-56:]
-    features, weights, outcomes = [], [], []
-    for idx, service in enumerate(recent):
-        weekday = date.fromisoformat(service["day"]).weekday()
-        features.append([1.0] + [float(weekday == day) for day in range(7)] + [idx / max(1, len(recent)-1)])
-        weights.append(math.exp((idx - len(recent) + 1) / 28))
-        outcomes.append(float(service["covers"]))
-    coefficients = solve_ridge(features, outcomes, weights)
-    target = [1.0] + [float(target_day.weekday() == day) for day in range(7)] + [1.0]
-    estimate = round(sum(weight * value for weight, value in zip(coefficients, target)))
-    return max(1, min(1000, estimate)), service_days
+    return cover_estimate(services, target_day)
 
 def normal_cdf(x):
     return (1 + math.erf(x / math.sqrt(2))) / 2
@@ -664,26 +689,52 @@ def build_plan(workspace_id: str, covers: Optional[int], event_boost: int, waste
             raise HTTPException(409, {"code": "covers_needed", "service_days": service_days, "required_days": 14})
         cover_source = "forecast" if covers is None else "manual"
         covers = estimated_covers if covers is None else covers
+        active = conn.execute("SELECT id,artifact_json FROM model_versions WHERE workspace_id=? AND status='active' ORDER BY activated_at DESC LIMIT 1", (workspace_id,)).fetchone()
+        trained = {}
+        model_version = None
+        if active:
+            try:
+                artifact = validate_artifact(json.loads(active["artifact_json"]), {dish["id"] for dish in dishes})
+                trained = {model["dish_id"]: model for model in artifact["models"]}
+                model_version = active["id"]
+            except (ValueError, TypeError, json.JSONDecodeError):
+                logger.error("Invalid active model for workspace %s", workspace_id)
         rows = []
         for dish in dishes:
             h = history(conn, workspace_id, dish["id"])
-            mu, sigma = forecast(h, covers, tomorrow, event_boost)
+            model = trained.get(dish["id"])
+            if model:
+                trained_mu, trained_sigma = predict_trained(model, tomorrow.isoformat(), covers, event_boost)
+                if not trained_supported(model, covers, trained_mu):
+                    model = None
+            mu, sigma = (trained_mu, trained_sigma) if model else forecast(h, covers, tomorrow, event_boost)
             lost_sale_cost = dish["price"] - dish["ingredient_cost"] + dish["shortage_cost"]
             _, qty, expected_leftover, expected_missed = optimize(mu, sigma, dish["ingredient_cost"], lost_sale_cost, waste_weight)
             previous = next((row["prepared"] for row in reversed(h) if row["prep_known"]), None)
-            rows.append({**dish, "forecast": round(mu, 1), "confidence_low": max(0, round(mu-1.28*sigma)), "confidence_high": round(mu+1.28*sigma), "prep": qty, "previous_prep": previous, "delta": qty-previous if previous is not None else None, "expected_leftover": round(expected_leftover, 1), "expected_missed": round(expected_missed, 1), "history": h})
+            rows.append({**dish, "forecast": round(mu, 1), "forecast_source": "trained" if model else "standard", "confidence_low": max(0, round(mu-1.28*sigma)), "confidence_high": round(mu+1.28*sigma), "prep": qty, "previous_prep": previous, "delta": qty-previous if previous is not None else None, "expected_leftover": round(expected_leftover, 1), "expected_missed": round(expected_missed, 1), "history": h})
         baseline_waste = sum(sum(r["leftover"] * d["ingredient_cost"] for r in d["history"][-28:] if r["prep_known"]) for d in rows)
         known_days = {r["day"] for d in rows for r in d["history"][-28:] if r["prep_known"]}
         expected_waste = sum(d["expected_leftover"] * d["ingredient_cost"] for d in rows)
         baseline_daily = baseline_waste / len(known_days) if known_days else None
         total_units = sum(d["prep"] for d in rows)
+        insights = []
+        exposure = max(rows, key=lambda d: d["expected_leftover"] * d["ingredient_cost"])
+        if exposure["expected_leftover"] >= 0.5:
+            insights.append({"title": f"Watch {exposure['name']}", "detail": f"The current plan expects about {exposure['expected_leftover']:.1f} unsold portions, representing roughly ${exposure['expected_leftover'] * exposure['ingredient_cost']:.0f} in ingredient cost."})
+        known_prep = [(d, [h for h in d["history"][-14:] if h["prep_known"]]) for d in rows]
+        known_prep = [(d, h) for d, h in known_prep if h]
+        if known_prep:
+            over = max(known_prep, key=lambda pair: sum(h["leftover"] for h in pair[1]))
+            portions = sum(h["leftover"] for h in over[1])
+            if portions > 0:
+                insights.append({"title": f"Recent overpreparation: {over[0]['name']}", "detail": f"Prepared portions exceeded sales by {portions} across the last {len(over[1])} recorded services for this dish. This is not a measurement of discarded food."})
         trend = []
         completed_days = sorted({r["day"] for dish in rows for r in dish["history"] if r["day"] < local_today().isoformat()})[-14:]
         for day in completed_days:
             daily = [r for d in rows for r in d["history"] if r["day"] == day]
             known = [r for r in daily if r["prep_known"]]
             trend.append({"day": day, "label": date.fromisoformat(day).strftime("%d %b"), "waste": round(sum(r["leftover"] * next(x["ingredient_cost"] for x in rows if x["id"] == r["dish_id"]) for r in known)) if known else None, "prepared": sum(r["prepared"] for r in known) if known else None})
-        return {"date": tomorrow.isoformat(), "covers": covers, "cover_source": cover_source, "cover_history_days": service_days, "forecast_covers": estimated_covers, "event_boost": event_boost, "waste_weight": waste_weight, "dishes": [{k:v for k,v in d.items() if k != "history"} for d in rows], "summary": {"prep_units": total_units, "expected_waste": round(expected_waste), "usual_waste": round(baseline_daily) if baseline_daily is not None else None, "waste_reduction": round(max(0, (baseline_daily-expected_waste)/max(1, baseline_daily)*100)) if baseline_daily is not None else None, "at_risk": round(sum(d["expected_missed"] for d in rows), 1)}, "trend": trend, "backtest": backtest(rows, waste_weight)}
+        return {"date": tomorrow.isoformat(), "covers": covers, "cover_source": cover_source, "cover_history_days": service_days, "forecast_covers": estimated_covers, "model_version": model_version, "event_boost": event_boost, "waste_weight": waste_weight, "dishes": [{k:v for k,v in d.items() if k != "history"} for d in rows], "insights": insights, "summary": {"prep_units": total_units, "expected_waste": round(expected_waste), "usual_waste": round(baseline_daily) if baseline_daily is not None else None, "waste_reduction": round(max(0, (baseline_daily-expected_waste)/max(1, baseline_daily)*100)) if baseline_daily is not None else None, "at_risk": round(sum(d["expected_missed"] for d in rows), 1)}, "trend": trend, "backtest": backtest(rows, waste_weight)}
 
 class PlanInput(BaseModel):
     covers: Optional[int] = Field(None, ge=1, le=1000)
@@ -718,9 +769,28 @@ class DishCostsInput(BaseModel):
 class SalesCsvInput(BaseModel):
     csv_text: str = Field(min_length=1, max_length=2_000_000)
     menu_costs: dict[str, DishCostsInput] = Field(default_factory=dict)
+    source_mapping: Optional[dict] = None
+    source_signature: Optional[str] = Field(default=None, min_length=64, max_length=64)
+
+class SpreadsheetInput(BaseModel):
+    filename: str = Field(min_length=5, max_length=200)
+    content_base64: str = Field(min_length=1, max_length=5_400_000)
+
+class MappedSpreadsheetInput(SpreadsheetInput):
+    mapping: dict
 
 @app.get("/api/health")
 def health():
+    return {"ok": True}
+
+@app.post("/api/waitlist")
+def join_waitlist(payload: EmailInput):
+    try:
+        email = clean_email(payload.email)
+    except ValueError:
+        raise HTTPException(422, "Enter a valid email address")
+    with db() as conn:
+        conn.execute("INSERT INTO waitlist_signups(email,created_at) VALUES (?,?) ON CONFLICT(email) DO NOTHING", (email, int(time.time())))
     return {"ok": True}
 
 @app.get("/api/auth/me")
@@ -806,27 +876,123 @@ def logout(request: Request, response: Response, user: dict = Depends(require_cs
 def plan(payload: PlanInput, user: dict = Depends(current_user)):
     return build_plan(user["workspace_id"], payload.covers, payload.event_boost, payload.waste_weight)
 
+@app.get("/api/models/status")
+def model_status(user: dict = Depends(current_user)):
+    workspace_id = user["workspace_id"]
+    with db() as conn:
+        job = conn.execute("SELECT id,status,stage,created_at,finished_at,reason,metrics_json FROM model_jobs WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT 1", (workspace_id,)).fetchone()
+        active = conn.execute("SELECT id,created_at,metrics_json FROM model_versions WHERE workspace_id=? AND status='active' ORDER BY activated_at DESC LIMIT 1", (workspace_id,)).fetchone()
+        dish_services = [dict(row) for row in conn.execute("SELECT d.name,COUNT(h.day) AS services FROM workspace_dishes d LEFT JOIN workspace_history h ON h.workspace_id=d.workspace_id AND h.dish_id=d.id WHERE d.workspace_id=? GROUP BY d.id,d.name ORDER BY services DESC,d.name", (workspace_id,))]
+        counts = [row["services"] for row in dish_services]
+    return {"enabled": os.getenv("YLD_MODEL_WORKER_ENABLED") == "1", "job": {"id": job["id"], "status": job["status"], "stage": job["stage"], "created_at": job["created_at"], "finished_at": job["finished_at"], "reason": job["reason"], "metrics": json.loads(job["metrics_json"]) if job["metrics_json"] else None} if job else None,
+            "active": {"id": active["id"], "created_at": active["created_at"], "metrics": json.loads(active["metrics_json"])} if active else None,
+            "eligible_dishes": sum(count >= MIN_SERVICES for count in counts), "max_services": max(counts, default=0), "required_services": MIN_SERVICES, "dish_services": dish_services[:6]}
+
+@app.post("/api/models/train")
+def request_model_training(user: dict = Depends(require_csrf)):
+    if os.getenv("YLD_MODEL_WORKER_ENABLED") != "1":
+        raise HTTPException(503, "Model training is not configured for this deployment")
+    if user["role"] != "owner":
+        raise HTTPException(403, "Only the workspace owner can train a model")
+    workspace_id = user["workspace_id"]
+    now = int(time.time())
+    with db() as conn:
+        conn.execute("UPDATE workspaces SET data_mode=data_mode WHERE id=?", (workspace_id,))
+        eligible = conn.execute("SELECT COUNT(*) AS count FROM (SELECT dish_id FROM workspace_history WHERE workspace_id=? GROUP BY dish_id HAVING COUNT(*) >= ?) AS eligible", (workspace_id, MIN_SERVICES)).fetchone()["count"]
+        if not eligible:
+            raise HTTPException(409, "At least one dish needs 56 recorded services before training")
+        pending = conn.execute("SELECT 1 FROM model_jobs WHERE workspace_id=? AND status IN ('queued','running') LIMIT 1", (workspace_id,)).fetchone()
+        if pending:
+            raise HTTPException(409, "A model run is already queued or running")
+        latest = conn.execute("SELECT created_at FROM model_jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1", (workspace_id,)).fetchone()
+        if latest and latest["created_at"] > now - 3600:
+            raise HTTPException(429, "Wait an hour before starting another model run")
+        job_id = str(uuid.uuid4())
+        conn.execute("INSERT INTO model_jobs(id,workspace_id,status,created_at) VALUES (?,?,?,?)", (job_id, workspace_id, "queued", now))
+    return {"job_id": job_id, "status": "queued"}
+
+@app.post("/api/models/rollback")
+def rollback_model(user: dict = Depends(require_csrf)):
+    if user["role"] != "owner":
+        raise HTTPException(403, "Only the workspace owner can revert a model")
+    with db() as conn:
+        conn.execute("UPDATE workspaces SET data_mode=data_mode WHERE id=?", (user["workspace_id"],))
+        conn.execute("UPDATE model_jobs SET status='rejected',finished_at=?,reason='Owner reverted to the standard forecast' WHERE workspace_id=? AND status IN ('queued','running')", (int(time.time()), user["workspace_id"]))
+        changed = conn.execute("UPDATE model_versions SET status='archived' WHERE workspace_id=? AND status='active'", (user["workspace_id"],))
+    if changed.rowcount == 0:
+        raise HTTPException(409, "No active model to revert")
+    return {"ok": True}
+
 @app.post("/api/import/preview")
 def preview_import(payload: SalesCsvInput, user: dict = Depends(current_user)):
     dishes, rows, days = parse_sales_csv(payload.csv_text)
-    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "dish_costs": sorted(dishes.values(), key=lambda dish: dish["name"]), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": user["data_mode"]}
+    counts = {key: 0 for key in dishes}
+    for row in rows:
+        counts[row["dish_key"]] += 1
+    dish_services = sorted(({"name": dishes[key]["name"], "services": count} for key, count in counts.items()), key=lambda item: (-item["services"], item["name"]))
+    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "dish_costs": sorted(dishes.values(), key=lambda dish: dish["name"]), "dish_services": dish_services, "eligible_dishes": sum(item["services"] >= MIN_SERVICES for item in dish_services), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": user["data_mode"]}
+
+@app.post("/api/import/inspect")
+def inspect_spreadsheet(payload: SpreadsheetInput, user: dict = Depends(require_csrf)):
+    try:
+        content = import_mapping.decode_file(payload.filename, payload.content_base64)
+        details, fallback = import_mapping.describe(payload.filename, content)
+        with db() as conn:
+            saved = conn.execute("SELECT mapping_json FROM workspace_import_mappings WHERE workspace_id=? AND source_signature=?", (user["workspace_id"], details["signature"])).fetchone()
+        mapping, source = fallback, "rules"
+        candidate = json.loads(saved["mapping_json"]) if saved else import_mapping.agent_mapping(details, fallback)
+        if candidate:
+            try:
+                import_mapping.validate_mapping(candidate, import_mapping.tables(payload.filename, content))
+                mapping, source = candidate, "saved" if saved else "agent"
+            except (ValueError, TypeError):
+                pass
+        return {**details, "mapping": mapping, "mapping_source": source}
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+
+@app.post("/api/import/normalize")
+def normalize_spreadsheet(payload: MappedSpreadsheetInput, user: dict = Depends(current_user)):
+    try:
+        content = import_mapping.decode_file(payload.filename, payload.content_base64)
+        csv_text = import_mapping.normalize(payload.filename, content, payload.mapping)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    preview = preview_import(SalesCsvInput(csv_text=csv_text), user)
+    reader = csv.DictReader(io.StringIO(csv_text))
+    return {"csv_text": csv_text, "preview": preview, "sample": [row for _, row in zip(range(5), reader)]}
 
 @app.post("/api/import/commit")
 def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
     if user["role"] != "owner":
         raise HTTPException(403, "Only the workspace owner can import service history")
     dishes, rows, days = parse_sales_csv(payload.csv_text)
+    default_cost_dishes = 0
     for dish in dishes.values():
         override = payload.menu_costs.get(dish["id"])
         if override:
             dish["ingredient_cost"] = round(override.ingredient_cost, 2)
             dish["price"] = round(override.price, 2)
         if dish["ingredient_cost"] is None or dish["price"] is None:
-            raise HTTPException(400, f"Enter ingredient cost and sale price for {dish['name']}")
+            # Keep a file-only import moving; the owner can replace these conservative placeholders in Menu costs.
+            dish["ingredient_cost"] = 5.00
+            dish["price"] = 15.00
+            default_cost_dishes += 1
         if dish["ingredient_cost"] <= 0 or dish["price"] <= dish["ingredient_cost"]:
             raise HTTPException(400, f"Sale price must exceed ingredient cost for {dish['name']}")
+    mapping_json = None
+    if payload.source_mapping is not None or payload.source_signature is not None:
+        if not payload.source_mapping or not payload.source_signature or not re.fullmatch(r"[0-9a-f]{64}", payload.source_signature):
+            raise HTTPException(400, "Invalid saved spreadsheet mapping")
+        mapping_json = json.dumps(payload.source_mapping, sort_keys=True, separators=(",", ":"))
+        if len(mapping_json) > 10_000:
+            raise HTTPException(400, "Spreadsheet mapping is too large")
     workspace_id = user["workspace_id"]
     with db() as conn:
+        # The worker takes the same row lock before promotion.
+        conn.execute("UPDATE workspaces SET data_mode=data_mode WHERE id=?", (workspace_id,))
+        conn.execute("UPDATE model_jobs SET status='rejected',finished_at=?,reason='Service history was replaced' WHERE workspace_id=? AND status IN ('queued','running')", (int(time.time()), workspace_id))
+        conn.execute("UPDATE model_versions SET status='archived' WHERE workspace_id=? AND status='active'", (workspace_id,))
         conn.execute("DELETE FROM workspace_history WHERE workspace_id=?", (workspace_id,))
         conn.execute("DELETE FROM workspace_dishes WHERE workspace_id=?", (workspace_id,))
         for dish in dishes.values():
@@ -835,7 +1001,9 @@ def commit_import(payload: SalesCsvInput, user: dict = Depends(require_csrf)):
             conn.execute("INSERT INTO workspace_dishes VALUES (?,?,?,?,?,?,?,?,?)", (workspace_id, dish["id"], dish["name"], dish["category"], dish["price"], dish["ingredient_cost"], baseline, 0, "Imported from sales CSV"))
         conn.executemany("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers,prep_known) VALUES (?,?,?,?,?,?,?,?)", [(workspace_id, row["day"], dishes[row["dish_key"]]["id"], row["sold"], row["prepared"], row["leftover"], row["covers"], row["prep_known"]) for row in rows])
         conn.execute("UPDATE workspaces SET data_mode='imported' WHERE id=?", (workspace_id,))
-    return {"ok": True, "dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows)}
+        if mapping_json:
+            conn.execute("INSERT INTO workspace_import_mappings(workspace_id,source_signature,mapping_json,updated_at) VALUES (?,?,?,?) ON CONFLICT(workspace_id,source_signature) DO UPDATE SET mapping_json=excluded.mapping_json,updated_at=excluded.updated_at", (workspace_id, payload.source_signature, mapping_json, int(time.time())))
+    return {"ok": True, "dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "default_cost_dishes": default_cost_dishes}
 
 @app.get("/api/export/history")
 def export_history(user: dict = Depends(current_user)):
@@ -863,6 +1031,13 @@ def update_dish_costs(dish_id: str, payload: DishCostsInput, user: dict = Depend
             raise HTTPException(404, "Dish not found")
     return {"ok": True}
 
+@app.get("/api/services/{service_day}/summary")
+def get_service_summary(service_day: date, user: dict = Depends(current_user)):
+    if service_day > local_today():
+        raise HTTPException(400, "Service date cannot be in the future")
+    with db() as conn:
+        return service_summary(conn, user["workspace_id"], service_day)
+
 @app.post("/api/actuals")
 def save_actual(payload: ActualInput, user: dict = Depends(require_csrf)):
     if payload.day > local_today():
@@ -870,13 +1045,23 @@ def save_actual(payload: ActualInput, user: dict = Depends(require_csrf)):
     if payload.sold > payload.prepared:
         raise HTTPException(400, "Sold cannot exceed prepared")
     with db() as conn:
+        # Serialize history edits with model promotion and CSV replacement.
+        conn.execute("UPDATE workspaces SET data_mode=data_mode WHERE id=?", (user["workspace_id"],))
         if not conn.execute("SELECT 1 FROM workspace_dishes WHERE workspace_id=? AND id=?", (user["workspace_id"], payload.dish_id)).fetchone():
             raise HTTPException(404, "Dish not found")
+        previous = conn.execute("SELECT sold,prepared,covers,prep_known FROM workspace_history WHERE workspace_id=? AND day=? AND dish_id=?", (user["workspace_id"], payload.day.isoformat(), payload.dish_id)).fetchone()
+        covers_changed = conn.execute("SELECT 1 FROM workspace_history WHERE workspace_id=? AND day=? AND covers<>? LIMIT 1", (user["workspace_id"], payload.day.isoformat(), payload.covers)).fetchone() is not None
+        model_correction = covers_changed or (previous is not None and previous["sold"] != payload.sold)
+        if model_correction or previous is None:
+            conn.execute("UPDATE model_jobs SET status='rejected',finished_at=?,reason='Service history changed during training' WHERE workspace_id=? AND status IN ('queued','running')", (int(time.time()), user["workspace_id"]))
+        if model_correction:
+            conn.execute("UPDATE model_versions SET status='archived' WHERE workspace_id=? AND status='active'", (user["workspace_id"],))
         # Covers belong to the service, not an individual dish. Keep existing
         # rows for that day consistent when actual attendance is corrected.
         conn.execute("UPDATE workspace_history SET covers=? WHERE workspace_id=? AND day=?", (payload.covers, user["workspace_id"], payload.day.isoformat()))
         conn.execute("INSERT INTO workspace_history(workspace_id,day,dish_id,sold,prepared,leftover,covers,prep_known) VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(workspace_id,day,dish_id) DO UPDATE SET sold=excluded.sold,prepared=excluded.prepared,leftover=excluded.leftover,covers=excluded.covers,prep_known=1", (user["workspace_id"], payload.day.isoformat(), payload.dish_id, payload.sold, payload.prepared, payload.prepared-payload.sold, payload.covers))
-    return {"ok": True}
+        summary = service_summary(conn, user["workspace_id"], payload.day)
+    return {"ok": True, "summary": summary}
 
 # One persistent FastAPI process can serve the built Vite app and API together.
 DIST_PATH = Path(__file__).resolve().parents[1] / "dist"

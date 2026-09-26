@@ -3,13 +3,14 @@
 YLD runs in its own Compose project at `~/yld`. The container is named
 `yld-api`, joins the existing `arro-edge` network, and publishes no host port.
 It is limited to 384 MiB RAM, half a CPU, and 128 processes. Its root
-filesystem is read-only. The current container uses SQLite in `~/yld/data`;
-`~/yld/data/yld-before-import-20260926.db` is the pre-deployment backup.
-The Supabase schema is prepared in the repo but is not connected on this VM.
+filesystem is read-only. The live app uses the private `yld` schema in the
+YLD Supabase Postgres project through the restricted `yld_app` role. The
+SQLite file in `~/yld/data` is a legacy copy, not the live database.
 
-The initial deployment uses `YLD_ENV=preview` because email delivery is not
-configured yet. The Caddy hostname route is installed, but public HTTPS is
-waiting for the `yld.nz` DNS A record to point to the VM.
+The deployment uses `YLD_ENV=production` and serves public HTTPS at `yld.nz`.
+The private `~/yld/.env` contains the Resend API key and
+`YLD_EMAIL_FROM="YLD <hello@yld.nz>"`. Resend must show the domain as verified
+for sending before invitation emails will be accepted.
 
 Once HTTPS is working, bootstrap the only admin account with a private one-use
 password setup link from the YLD container:
@@ -33,21 +34,48 @@ docker stats --no-stream yld-api
 
 ## Public route
 
-Point the apex A record to the VM's reserved IP `34.116.70.110` and set `www`
-as a CNAME to `yld.nz` in Crazy Domains. The Caddy route is already active;
-it will obtain HTTPS certificates after DNS resolves to this VM. The route is
-in `Caddyfile.yld`, and the original shared Caddyfile is backed up at
+The apex and `www` A records point to the VM's reserved IP `34.116.70.110`
+in Crazy Domains. Caddy redirects `www` to the apex. The route is in
+`Caddyfile.yld`, and the original shared Caddyfile is backed up at
 `~/yld/Caddyfile.arro-backup`. Do not restart the Arro Compose project.
 
-Before enabling invitation email, set `YLD_ENV=production`,
-`YLD_PUBLIC_URL=https://yld.nz`, `RESEND_API_KEY`, and a verified
-`YLD_EMAIL_FROM` in `~/yld/.env` (mode `600`), then recreate only YLD with
-`docker compose up -d --no-deps --force-recreate`.
+After changing YLD settings in `~/yld/.env` (mode `600`), recreate only YLD
+with `docker compose up -d --no-deps --force-recreate api`.
 
-To switch to Supabase later, apply `supabase/migrations`, add the restricted
-`yld_app` pooler connection as `DATABASE_URL`, and set `YLD_REQUIRE_POSTGRES=1`.
-Keep the connection string out of source control. This is a separate database
-cutover and will not happen merely by changing the image.
+## Model agent
+
+The API and agent workspace run as `yld:agent-20260926-3`. Sales upload,
+mapping, readiness charts, the live left-to-right model pipeline, and held-out
+forecast results share one screen. The private
+Postgres schema has the model registry, import mapping, and waitlist migrations.
+`yld-model-proxy` is attached to an internal Docker network and allows outbound
+CONNECT traffic only to `api.openai.com:443`; the agent and trainer images are
+loaded on the VM. The trusted host-side worker source and locked Python
+environment are at `~/yld/model-worker`. A systemd unit is installed as
+`yld-model-worker` but is not enabled until a rotated `CODEX_API_KEY` is placed
+in `~/yld/model-worker.env` (mode `600`). Do not reuse the key posted in chat.
+
+After adding that key to the existing blank `CODEX_API_KEY=` line, start the
+worker and then enable the training control in the API:
+
+```sh
+sudo systemctl enable --now yld-model-worker
+systemctl is-active yld-model-worker
+# Set YLD_MODEL_WORKER_ENABLED=1 in ~/yld/.env without changing other secrets.
+cd ~/yld
+docker compose up -d --no-deps --force-recreate api
+docker compose ps
+```
+
+The API never receives the OpenAI key or Docker socket. The worker uses the
+same restricted Postgres connection as the API. See [MODEL_PIPELINE.md](../MODEL_PIPELINE.md)
+for sandbox, training, gate, and rollback details. To stop new training, set
+`YLD_MODEL_WORKER_ENABLED=0` in the API environment and recreate only `api`;
+then stop `yld-model-worker`.
+
+The pre-agent Compose file is at `~/yld/compose.before-agent-20260926.yaml`.
+To roll back the API/UI image, copy it over `~/yld/compose.yaml` and run
+`docker compose up -d --no-deps --force-recreate api`.
 
 To roll back YLD's public route, restore the original Caddyfile from the
 backup, validate it, and reload Caddy. To stop only YLD, run

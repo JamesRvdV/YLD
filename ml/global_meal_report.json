@@ -1,0 +1,142 @@
+{
+  "source": "Genpact Food Demand Forecasting / Analytics Vidhya; public copy: https://github.com/Shivansh-Commits/Food-Demand-Forecasting-DATA-SCIENCE-CHALLANGE/blob/main/train.csv",
+  "source_sha256": "a2ed2d7c6905d63a9361d8dd35bc06c8a597831f7185644e0f33ad7bfe20cc81",
+  "target": "weekly_orders_per_centre_and_meal",
+  "features": [
+    "lag_1",
+    "lag_2",
+    "lag_4",
+    "lag_8",
+    "mean_4",
+    "mean_12",
+    "std_12",
+    "week_gap"
+  ],
+  "selection": "lowest validation MAE on familiar series, weeks 117-129",
+  "train_weeks": [
+    13,
+    116
+  ],
+  "validation_weeks": [
+    117,
+    129
+  ],
+  "test_weeks": [
+    130,
+    145
+  ],
+  "training_rows": 208755,
+  "held_out_centres": [
+    20,
+    23,
+    36,
+    64,
+    65,
+    77,
+    86,
+    94,
+    97,
+    108,
+    110,
+    113,
+    149,
+    161,
+    186
+  ],
+  "held_out_meals": [
+    1207,
+    1216,
+    1438,
+    1571,
+    1778,
+    1803,
+    1971,
+    2581,
+    2631,
+    2867
+  ],
+  "validation": {
+    "poisson_80": {
+      "rows": 27667,
+      "centres": 62,
+      "meals": 41,
+      "model_mae": 93.8,
+      "recent_4_mae": 104.18,
+      "last_week_mae": 103.55,
+      "recent_12_mae": 105.72,
+      "four_weeks_ago_mae": 132.66,
+      "model_wape": 0.3473,
+      "recent_4_wape": 0.3857,
+      "series_beating_recent_4_fraction": 0.572
+    },
+    "poisson_200": {
+      "rows": 27667,
+      "centres": 62,
+      "meals": 41,
+      "model_mae": 93.8,
+      "recent_4_mae": 104.18,
+      "last_week_mae": 103.55,
+      "recent_12_mae": 105.72,
+      "four_weeks_ago_mae": 132.66,
+      "model_wape": 0.3473,
+      "recent_4_wape": 0.3857,
+      "series_beating_recent_4_fraction": 0.571
+    }
+  },
+  "selected_model": "poisson_80",
+  "test": {
+    "seen_centres_seen_meals": {
+      "rows": 34289,
+      "centres": 62,
+      "meals": 41,
+      "model_mae": 85.41,
+      "recent_4_mae": 96.94,
+      "last_week_mae": 98.89,
+      "recent_12_mae": 94.89,
+      "four_weeks_ago_mae": 122.69,
+      "model_wape": 0.3303,
+      "recent_4_wape": 0.3749,
+      "series_beating_recent_4_fraction": 0.586
+    },
+    "unseen_centres_seen_meals": {
+      "rows": 8172,
+      "centres": 15,
+      "meals": 41,
+      "model_mae": 77.28,
+      "recent_4_mae": 87.68,
+      "last_week_mae": 89.42,
+      "recent_12_mae": 85.12,
+      "four_weeks_ago_mae": 110.84,
+      "model_wape": 0.3484,
+      "recent_4_wape": 0.3953,
+      "series_beating_recent_4_fraction": 0.582
+    },
+    "seen_centres_unseen_meals": {
+      "rows": 8113,
+      "centres": 62,
+      "meals": 10,
+      "model_mae": 109.69,
+      "recent_4_mae": 125.17,
+      "last_week_mae": 114.13,
+      "recent_12_mae": 131.58,
+      "four_weeks_ago_mae": 152.31,
+      "model_wape": 0.505,
+      "recent_4_wape": 0.5763,
+      "series_beating_recent_4_fraction": 0.662
+    },
+    "unseen_centres_unseen_meals": {
+      "rows": 1902,
+      "centres": 15,
+      "meals": 10,
+      "model_mae": 94.02,
+      "recent_4_mae": 107.41,
+      "last_week_mae": 102.23,
+      "recent_12_mae": 113.55,
+      "four_weeks_ago_mae": 133.36,
+      "model_wape": 0.4951,
+      "recent_4_wape": 0.5657,
+      "series_beating_recent_4_fraction": 0.646
+    }
+  },
+  "test_protocol": "One week ahead rolling forecast; earlier true sales within held-out series are available as history"
+}

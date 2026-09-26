@@ -1,0 +1,21 @@
+[Unit]
+Description=YLD kitchen model worker
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arrotechnology_gmail_com
+Group=arrotechnology_gmail_com
+WorkingDirectory=/home/arrotechnology_gmail_com/yld/model-worker
+EnvironmentFile=/home/arrotechnology_gmail_com/yld/model-worker.env
+ExecStart=/home/arrotechnology_gmail_com/yld/model-worker/.venv/bin/python -m api.model_worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

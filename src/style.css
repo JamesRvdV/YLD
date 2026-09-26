@@ -36,3 +36,64 @@ body .landing .statement,body .landing .numbers,body .landing .numbers>div+div{c
 .pricing-feedback{margin:16px clamp(20px,4vw,64px);padding:14px 18px;border:1px solid currentColor;font-size:13px;line-height:1.4}
 .price-grid .billing-hint{margin-top:auto;padding-top:14px;border-top:1px solid currentColor;font-size:11px}
 .price-grid article button:disabled{opacity:.5;cursor:wait}
+
+/* Waitlist: one clear action for prospective kitchens. */
+.waitlist-backdrop{position:fixed;z-index:100;inset:0;display:grid;place-items:center;padding:24px;background:#111b;backdrop-filter:blur(5px)}
+.waitlist-dialog{position:relative;width:min(100%,520px);padding:42px;background:#e8e7e2;color:#111;border:1px solid #111;box-shadow:12px 12px 0 #ff6538}
+.waitlist-close{position:absolute;top:13px;right:15px;padding:0;border:0;background:transparent;color:#111;font-size:31px;line-height:1}
+.waitlist-dialog>span{display:block;margin-bottom:22px;font-size:10px;font-weight:700;letter-spacing:.12em}
+.waitlist-dialog h2{margin:0 0 17px;font:700 clamp(46px,7vw,70px)/.76 'Franklin Gothic Medium','Franklin Gothic',Arial,sans-serif;letter-spacing:-.08em}
+.waitlist-dialog h2 em{color:#ff6538;font-style:normal}
+.waitlist-dialog>p{max-width:360px;margin:0 0 30px;font-size:14px;line-height:1.45}
+.waitlist-dialog form{display:flex;gap:12px;align-items:end;border-top:1px solid #111;padding-top:20px}
+.waitlist-dialog label{display:flex;min-width:0;flex:1;flex-direction:column;gap:9px;font-size:10px;font-weight:700;letter-spacing:.1em}
+.waitlist-dialog input{width:100%;height:48px;padding:0 0;border:0;border-bottom:1px solid #111;border-radius:0;outline-color:#ff6538;background:transparent;color:#111;font-size:16px}
+.waitlist-dialog input::placeholder{color:#5d5c57}
+.waitlist-submit{display:flex;align-items:center;justify-content:space-between;gap:23px;height:48px;padding:0 15px;border:1px solid #111;background:#111;color:#e8e7e2;font-size:10px;font-weight:700;letter-spacing:.1em;white-space:nowrap}
+.waitlist-submit span{font-size:18px}.waitlist-error{margin:0!important;color:#a6321b}.waitlist-dialog .waitlist-privacy{margin:17px 0 0;color:#3d3d3a;font-size:11px}.waitlist-privacy a{color:inherit}.public-nav .nav-waitlist{background:#ff6538;color:#111}
+@media(max-width:700px){.public-nav .nav-home,.public-nav .nav-pricing{display:none}.landing-links{gap:8px!important}.landing-links button{padding:10px 8px!important}.waitlist-backdrop{padding:15px}.waitlist-dialog{padding:35px 23px;box-shadow:7px 7px 0 #ff6538}.waitlist-dialog form{display:block}.waitlist-submit{width:100%;margin-top:18px}}
+
+/* Motion and depth for the public site. */
+@keyframes yld-rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@keyframes yld-drift{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-10px,0)}}
+@keyframes yld-glow{0%,100%{box-shadow:12px 12px 0 #ff6538}50%{box-shadow:17px 17px 0 #ff6538}}
+@keyframes yld-dialog-in{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+.public-nav{position:relative;z-index:10;transition:background .25s ease,box-shadow .25s ease}
+.public-nav .brand{transition:transform .2s ease,color .2s ease}.public-nav .brand:hover{transform:translateY(-2px) rotate(-2deg)}
+.public-nav .landing-links button{position:relative;transition:transform .18s ease,background .18s ease,color .18s ease,box-shadow .18s ease}
+.public-nav .landing-links button:not(.nav-waitlist):hover{transform:translateY(-2px);background:#111!important;color:#e8e7e2!important;box-shadow:3px 3px 0 #ff6538}
+.public-nav .nav-waitlist{box-shadow:0 0 0 0 #111;transition:transform .18s ease,box-shadow .18s ease!important}.public-nav .nav-waitlist:hover{transform:translate(-3px,-3px);box-shadow:4px 4px 0 #111}
+.public-nav .landing-links button:active,.hero-cta:active,.waitlist-submit:active{transform:translate(1px,1px)!important;box-shadow:0 0 0 #111!important}
+.hero{isolation:isolate}.hero:after{position:absolute;z-index:-1;right:7%;bottom:10%;width:min(34vw,480px);aspect-ratio:1;content:'';border:1px solid #111;border-radius:50%;opacity:.24;animation:yld-drift 8s ease-in-out infinite}.hero h1{animation:yld-rise .72s cubic-bezier(.2,.8,.2,1) both}.hero-meta{animation:yld-rise .5s .08s both}.hero-bottom{animation:yld-rise .62s .22s both}
+.hero-cta,.flagship-copy button,.underline-button,.landing-close button,.how-close button,.price-grid article button{transition:transform .22s ease,letter-spacing .22s ease,color .22s ease,background .22s ease,box-shadow .22s ease!important}.hero-cta:hover,.flagship-copy button:hover,.underline-button:hover,.landing-close button:hover,.how-close button:hover,.price-grid article button:hover{transform:translateX(5px);letter-spacing:.14em!important}.hero-cta:hover{box-shadow:5px 5px 0 #111}
+.landing-problem,.flagship,.service-intro,.dynamic-numbers,.landing-close,.how-intro,.how-flow,.how-close,.pricing-intro,.price-grid,.waitlist-prompt{animation:yld-rise .64s cubic-bezier(.2,.8,.2,1) both}.landing-problem{animation-delay:.04s}.flagship{animation-delay:.08s}.service-intro{animation-delay:.12s}.dynamic-numbers{animation-delay:.16s}
+.problem-stats article{transition:padding .25s ease,background .25s ease,color .25s ease}.problem-stats article:hover{padding-left:16px;background:#ff6538}.problem-stats article:hover b{transform:scale(1.08)}.problem-stats b{display:block;transition:transform .25s ease}
+.prep-preview{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease;animation:yld-glow 3.5s ease-in-out infinite}.prep-preview:hover{transform:translate(-8px,-8px);box-shadow:25px 25px 0 #ff6538!important;animation-play-state:paused}.preview-row{transition:padding .22s ease,background .22s ease,color .22s ease}.preview-row i{transition:transform .22s ease,background .22s ease,color .22s ease}.preview-row:hover{padding-left:26px;background:#ff6538}.preview-row:hover i{transform:rotate(-45deg);background:#111;color:#e8e7e2}
+.service-intro .step-grid article,.how-flow li,.price-grid article{transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,background .28s ease}.service-intro .step-grid article:hover,.how-flow li:hover{position:relative;z-index:1;transform:translateY(-7px);box-shadow:7px 7px 0 #ff6538}.how-flow-icon{transition:transform .3s ease,background .3s ease}.how-flow li:hover .how-flow-icon{transform:rotate(-8deg) scale(1.08)}.price-grid article:hover{z-index:2;transform:translateY(-8px);box-shadow:9px 9px 0 #ff6538}.price-grid article.featured:hover{box-shadow:9px 9px 0 #e8e7e2}
+.waitlist-backdrop{animation:waitlist-fade .2s ease both}.waitlist-dialog{animation:yld-dialog-in .3s cubic-bezier(.2,.8,.2,1) both}.waitlist-close{transition:transform .2s ease,color .2s ease}.waitlist-close:hover{transform:rotate(90deg);color:#ff6538}.waitlist-dialog input{transition:border-color .2s ease,transform .2s ease}.waitlist-dialog input:focus{transform:translateY(-2px);border-color:#ff6538}.waitlist-submit{transition:transform .2s ease,box-shadow .2s ease,background .2s ease}.waitlist-submit:hover{transform:translate(-3px,-3px);box-shadow:4px 4px 0 #ff6538}
+@keyframes waitlist-fade{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(max-width:700px){.hero:after{width:68vw;right:-14%;bottom:17%}.prep-preview:hover,.service-intro .step-grid article:hover,.how-flow li:hover,.price-grid article:hover{transform:none}.problem-stats article:hover{padding-left:0}}
+
+/* Reusable waitlist callout. */
+.waitlist-prompt{display:grid;grid-template-columns:minmax(180px,.55fr) minmax(0,1fr);gap:32px;align-items:start;padding:58px clamp(24px,6vw,96px);overflow:hidden;color:#111;background:#ff6538 url('./assets/orange-screenprint.png') center/cover;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease}
+.waitlist-prompt>span{font-size:10px;font-weight:700;letter-spacing:.12em}.waitlist-prompt h2{margin:0;font:700 clamp(48px,7vw,92px)/.76 'Franklin Gothic Medium','Franklin Gothic',Arial,sans-serif;letter-spacing:-.08em}.waitlist-prompt h2 em{color:#111;font-style:normal}.waitlist-prompt button{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-top:34px;padding:14px 0;border:0;border-top:1px solid #111;color:#111;background:transparent;font-size:10px;font-weight:700;letter-spacing:.1em;transition:transform .22s ease,letter-spacing .22s ease,color .22s ease}.waitlist-prompt button span{font-size:19px;transition:transform .22s ease}.waitlist-prompt:hover{position:relative;z-index:1;transform:translateY(-7px);color:#111!important;background:#ff6538 url('./assets/orange-screenprint.png') center/cover!important;box-shadow:9px 9px 0 #111}.waitlist-prompt:hover h2 em{color:#111}.waitlist-prompt:hover button,.waitlist-prompt:hover button:hover{border-color:#111;color:#111}.waitlist-prompt button:hover{transform:translateX(7px);letter-spacing:.15em}.waitlist-prompt:hover button span,.waitlist-prompt button:hover span{transform:translate(4px,-4px)}.waitlist-prompt button:active{transform:translateX(3px);transition-duration:.08s}
+@media(max-width:700px){.waitlist-prompt{display:block;padding:48px 25px}.waitlist-prompt h2{margin-top:40px}.waitlist-prompt:hover{transform:none}}
+
+/* Problem section: align the evidence block with the copy's visual baseline. */
+.landing-problem{grid-template-columns:minmax(0,1.1fr) minmax(330px,.9fr);align-items:end;gap:clamp(48px,8vw,150px)}
+.landing-problem .problem-copy>p{max-width:510px;margin:0;font-size:16px;line-height:1.5}
+.problem-stats{width:100%}
+.problem-stats article{grid-template-columns:126px minmax(0,1fr);gap:24px;align-items:baseline;padding:23px 0}
+.problem-stats b{font-size:clamp(40px,4vw,54px);white-space:nowrap}
+.problem-stats p{max-width:290px}
+@media(max-width:700px){.landing-problem .problem-copy>p{font-size:15px}.problem-stats article{grid-template-columns:112px minmax(0,1fr);gap:16px}}
+
+/* Hero preview: a compact version of the daily prep sheet. */
+body .landing .hero{grid-template-columns:1fr!important}body .landing .hero-headline{grid-column:1;grid-row:2;align-self:start;justify-self:start;z-index:1;max-width:58vw;font-size:clamp(70px,7.6vw,145px)!important;text-align:left}body .landing .hero-prep-card{position:absolute;z-index:2;top:31%;right:clamp(26px,6vw,112px);width:min(420px,30vw);margin:0;border:1px solid #111;background:#e8e7e2;color:#111;box-shadow:15px 15px 0 #ff6538}.hero-prep-card header,.hero-prep-card footer{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #111;font-size:10px;font-weight:800;letter-spacing:.1em}.hero-prep-card header b{font-size:10px}.hero-prep-summary{display:flex;align-items:end;justify-content:space-between;padding:20px 18px 16px;border-bottom:1px solid #111}.hero-prep-summary span{font-size:10px;font-weight:800;letter-spacing:.1em}.hero-prep-summary strong{font:700 56px/.7 'Franklin Gothic Medium','Franklin Gothic',Arial,sans-serif;letter-spacing:-.08em}.hero-prep-card ul{margin:0;padding:0;list-style:none}.hero-prep-card li{display:grid;grid-template-columns:26px 1fr auto;gap:9px;align-items:center;padding:13px 18px;border-bottom:1px solid #aaa;font-size:11px;font-weight:800;letter-spacing:.04em}.hero-prep-card li i{display:grid;width:17px;height:17px;place-items:center;border:1px solid #111;color:#111;background:#ff6538;font-size:11px;font-style:normal;line-height:1}.hero-prep-card li b{font:700 24px/.7 'Franklin Gothic Medium','Franklin Gothic',Arial,sans-serif;letter-spacing:-.06em}.hero-prep-card footer{border-bottom:0;background:#111;color:#e8e7e2}.hero-prep-card footer b{color:#ff6538;font-size:16px}@media(max-width:700px){.hero-prep-card{display:none}}
+
+/* Keep the hero still; the prep sheet responds only when explored. */
+body .landing .hero-prep-card{transition:transform .25s ease,box-shadow .25s ease}
+body .landing .hero-prep-card li{transition:background .2s ease,transform .2s ease}
+body .landing .hero-prep-card li i{transition:transform .2s ease}
+@media(hover:hover){body .landing .hero-prep-card:hover{transform:translate(-7px,-7px) rotate(-.45deg);box-shadow:22px 22px 0 #ff6538}body .landing .hero-prep-card:hover li{background:#deddd8}body .landing .hero-prep-card:hover li:nth-child(2){transition-delay:.04s}body .landing .hero-prep-card:hover li:nth-child(3){transition-delay:.08s}body .landing .hero-prep-card:hover li:nth-child(4){transition-delay:.12s}body .landing .hero-prep-card:hover li i{transform:scale(1.12)}}

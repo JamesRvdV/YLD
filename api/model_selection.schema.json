@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "algorithm": {"type": "string", "enum": ["ridge_weekday_v1", "ridge_decay_v1"]},
+    "window": {"type": "integer", "enum": [28, 56, 112]},
+    "penalty": {"type": "number", "enum": [0.5, 2, 10, 50]},
+    "reason": {"type": "string"}
+  },
+  "required": ["algorithm", "window", "penalty", "reason"]
+}

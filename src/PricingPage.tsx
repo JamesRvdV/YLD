@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SessionUser } from './AuthPages'
+import WaitlistPrompt from './WaitlistPrompt'
 
 type BillingStatus = { plan: string; status: string } | null
 
@@ -9,7 +10,7 @@ const plans = [
   { key: 'enterprise', name: 'ENTERPRISE', price: 'CUSTOM', description: 'Proposed for operators with a tailored rollout.', items: ['Everything in Multi-chain', 'Weekly performance view', 'Dedicated onboarding'] },
 ]
 
-export default function PricingPage({ nav, onLogin, user }: { nav: ReactNode; onLogin: () => void; user: SessionUser | null }) {
+export default function PricingPage({ nav, onLogin, onWaitlist, user }: { nav: ReactNode; onLogin: () => void; onWaitlist: () => void; user: SessionUser | null }) {
   const [testCheckout, setTestCheckout] = useState(false)
   const [billing, setBilling] = useState<BillingStatus>(null)
   const [busy, setBusy] = useState(false)
@@ -116,15 +117,15 @@ export default function PricingPage({ nav, onLogin, user }: { nav: ReactNode; on
 
   return <main className="pricing-page">
     {nav}
-    <section className="pricing-intro"><h1>PAY FOR<br/>LESS <em>WASTE.</em></h1></section>
-    {checkoutResult === 'success' && !billing && <p className="pricing-feedback" role="status">{checkoutRecovery === 'expired' ? 'This checkout expired. You can start another test checkout.' : checkoutRecovery === 'open' ? <>Checkout has not completed. <a href={checkoutUrl}>Resume your open checkout</a>.</> : confirmationTimedOut ? <>Stripe has not confirmed your test subscription yet. Check again or contact <a href="mailto:hello@arro.co.nz">hello@arro.co.nz</a> if it persists.</> : 'Stripe checkout returned. Your subscription status will appear here after Stripe confirms it.'}</p>}
+    <section className="pricing-intro"><h1>LESS WASTE.<br/><em>MORE CONTROL.</em></h1><p>YLD is opening with a small group of independent kitchens. Join the waitlist for early access.</p></section>
+    {checkoutResult === 'success' && !billing && <p className="pricing-feedback" role="status">{checkoutRecovery === 'expired' ? 'This checkout expired. You can start another test checkout.' : checkoutRecovery === 'open' ? <>Checkout has not completed. <a href={checkoutUrl}>Resume your open checkout</a>.</> : confirmationTimedOut ? <>Stripe has not confirmed your test subscription yet. Check again or contact <a href="mailto:hello@yld.co.nz">hello@yld.co.nz</a> if it persists.</> : 'Stripe checkout returned. Your subscription status will appear here after Stripe confirms it.'}</p>}
     {checkoutResult === 'cancel' && <p className="pricing-feedback" role="status">Checkout was cancelled. No test subscription was started.</p>}
     {error && <p className="pricing-feedback" role="alert">{error}</p>}
     <section className="price-grid">{plans.map((plan, index) => <article key={plan.key} className={index === 1 ? 'featured' : ''}>
       <div className="plan-number">0{index + 1}</div><h2>{plan.name}</h2><p>{plan.description}</p>
       <strong>{plan.price === 'CUSTOM' ? plan.price : <><small>$</small>{plan.price}<small>/ MO</small></>}</strong>
       <ul>{plan.items.map(item => <li key={item}>{item}</li>)}</ul>
-      {plan.key === 'enterprise' || !testCheckout ? null
+      {plan.key === 'enterprise' || !testCheckout ? <button onClick={onWaitlist}>JOIN THE WAITLIST <span>→</span></button>
         : !user ? <button onClick={onLogin}>SIGN IN TO TEST CHECKOUT <span>→</span></button>
         : user.role !== 'owner' ? <p className="billing-hint">Ask your workspace owner to manage billing.</p>
         : billing && billing.status !== 'canceled' ? <button disabled={busy} onClick={() => void openBilling('portal')}>MANAGE TEST BILLING <span>→</span></button>
@@ -133,5 +134,6 @@ export default function PricingPage({ nav, onLogin, user }: { nav: ReactNode; on
           : <p className="billing-hint">Waiting for Stripe to confirm the test subscription.</p>
         : <button disabled={busy} onClick={() => void openBilling('checkout', plan.key)}>{busy ? 'OPENING STRIPE…' : 'TEST CHECKOUT'} <span>→</span></button>}
     </article>)}</section>
+    <WaitlistPrompt eyebrow="OPENING WITH A SMALL GROUP OF KITCHENS" title={<>MAKE THE<br/>BETTER CALL.</>} onWaitlist={onWaitlist} />
   </main>
 }

@@ -121,6 +121,14 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(asgi_request(self.module.app, "GET", "/api/auth/me", cookie=first_cookie)[0], 401)
 
+    def test_waitlist_signup_is_saved_once(self):
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/waitlist", {"email": "not-an-email"})[0], 422)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/waitlist", {"email": "Chef@Example.com"})[0], 200)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/waitlist", {"email": "chef@example.com"})[0], 200)
+        with self.module.db() as conn:
+            signups = conn.execute("SELECT email FROM waitlist_signups").fetchall()
+        self.assertEqual([row["email"] for row in signups], ["chef@example.com"])
+
     def test_csv_import_replaces_only_owner_workspace_and_handles_unknown_prep(self):
         _, owner_cookie, owner = self.redeem("owner@first.example", "First Kitchen")
         _, other_cookie, other = self.redeem("owner@second.example", "Second Kitchen")
@@ -161,6 +169,7 @@ class AuthTest(unittest.TestCase):
         request = send.call_args.args[0]
         self.assertEqual(request.full_url, "https://api.resend.com/emails")
         self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
+        self.assertEqual(request.get_header("User-agent"), f"YLD/1.0 (+{self.module.PUBLIC_URL})")
         self.assertEqual(request.get_header("Idempotency-key"), "invite-123")
         payload = json.loads(request.data)
         self.assertEqual(payload["to"], ["chef@example.com"])
@@ -357,7 +366,7 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(corrected, [70, 70])
         self.assertEqual(untouched, [55, 55])
 
-    def test_sales_csv_without_cost_columns_uses_preview_cost_entry(self):
+    def test_sales_csv_without_cost_columns_uses_automatic_cost_defaults(self):
         _, cookie, user = self.redeem("owner@example.com", "Cost Setup")
         lines = ["date,dish,sold,covers"]
         for days_ago in range(16, 0, -1):
@@ -370,15 +379,13 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(dish["name"], "Pumpkin soup")
         self.assertIsNone(dish["ingredient_cost"])
         self.assertIsNone(dish["price"])
-        self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text}, cookie=cookie, csrf=user["csrf_token"])[0], 400)
-        original = asgi_request(self.module.app, "POST", "/api/plan", {}, cookie=cookie)[2]
-        self.assertEqual(original["detail"]["code"], "import_needed")
-        costs = {dish["id"]: {"ingredient_cost": 2.75, "price": 11.5}}
-        status, _, _ = asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text, "menu_costs": costs}, cookie=cookie, csrf=user["csrf_token"])
+        status, _, committed = asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text}, cookie=cookie, csrf=user["csrf_token"])
         self.assertEqual(status, 200)
+        self.assertEqual(committed["default_cost_dishes"], 1)
         plan = asgi_request(self.module.app, "POST", "/api/plan", {}, cookie=cookie)[2]
         self.assertEqual(plan["dishes"][0]["name"], "Pumpkin soup")
-        self.assertEqual(plan["dishes"][0]["ingredient_cost"], 2.75)
+        self.assertEqual(plan["dishes"][0]["ingredient_cost"], 5)
+        self.assertEqual(plan["dishes"][0]["price"], 15)
 
     def test_bootstrap_cli_only_prints_admin_link(self):
         project_root = Path(__file__).resolve().parents[1]
@@ -408,6 +415,25 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"text/html", headers[b"content-type"])
         self.assertIn(b'<div id="root"></div>', body)
+
+    def test_model_training_route_requires_owner_csrf_and_enough_history(self):
+        _, cookie, user = self.redeem("chef@model.example", "Model Kitchen")
+        with patch.dict(os.environ, {"YLD_MODEL_WORKER_ENABLED": "1"}):
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/models/train", cookie=cookie)[0], 403)
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/models/train", cookie=cookie, csrf=user["csrf_token"])[0], 409)
+            body = {"csv_text": self.service_csv(days=56)}
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/commit", body, cookie=cookie, csrf=user["csrf_token"])[0], 200)
+            status, _, result = asgi_request(self.module.app, "POST", "/api/models/train", cookie=cookie, csrf=user["csrf_token"])
+            self.assertEqual(status, 200)
+            self.assertEqual(result["status"], "queued")
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/models/train", cookie=cookie, csrf=user["csrf_token"])[0], 409)
+            status, _, result = asgi_request(self.module.app, "GET", "/api/models/status", cookie=cookie)
+            self.assertEqual(status, 200)
+            self.assertEqual(result["job"]["status"], "queued")
+            self.assertEqual(result["job"]["stage"], "queued")
+            self.assertEqual(result["eligible_dishes"], 1)
+            self.assertEqual(result["max_services"], 56)
+            self.assertEqual(result["dish_services"][0]["services"], 56)
 
 
 if __name__ == "__main__":

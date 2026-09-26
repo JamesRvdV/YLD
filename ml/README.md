@@ -1,6 +1,6 @@
 # Restaurant inventory AI — VS Code starter
 
-The separate [cover prediction baseline](COVER_BASELINE.md) studies next-service covers from public data and does not feed this inventory modeller.
+The [per-dish demand baseline](DISH_DEMAND_BASELINE.md) forecasts next-service portions for seven dishes from public sales data. The [generalisation probe](GENERALISATION_PROBE.md) tests a pooled meal model on unseen centres and meals. The separate [cover prediction baseline](COVER_BASELINE.md) studies next-service covers. None feeds this aggregate inventory modeller.
 
 A runnable restaurant-level MVP: forecast food sold, optimise preparation with a newsvendor quantile, replay history, and report estimated net savings. A Streamlit dashboard lets you inspect one restaurant or upload a compatible CSV.
 

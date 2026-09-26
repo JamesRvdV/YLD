@@ -1,6 +1,6 @@
 # YLD
 
-Invite-only restaurant prep planner built with Vite, React and FastAPI. Each new workspace starts empty. An owner imports its service history from CSV, reviews per-dish costs, and then receives prep recommendations. Accounts and service data are isolated by workspace. Admin invitations set up a password for future sign-ins.
+Invite-only restaurant prep planner built with Vite, React and FastAPI. Each new workspace starts empty. An owner imports its service history from CSV or XLSX, reviews per-dish costs, and then receives prep recommendations. Accounts and service data are isolated by workspace. Admin invitations set up a password for future sign-ins.
 
 ## Local setup
 
@@ -23,7 +23,7 @@ set +a
 Start the API:
 
 ```bash
-uv run --locked uvicorn api.main:app --host 127.0.0.1 --port 8817
+uv run --locked uvicorn api.main:app --reload --host 127.0.0.1 --port 8817
 ```
 
 In another shell, start Vite:
@@ -67,9 +67,13 @@ The import screen offers a [blank CSV template](templates/service-history.csv). 
 | `price` | Optional per-portion sale price in NZD |
 | `category` | Optional menu category |
 
-The minimum required columns are `date,dish,sold,covers`. The import screen asks for per-dish costs if they are absent from the file. The owner previews and confirms an upload. A later import replaces the workspace’s current dishes and service history; download **Current data** before replacing it. No dishes or sales are added automatically.
+The minimum required information is `date,dish,sold,covers`. The import screen accepts UTF-8 CSV and XLSX files up to 4 MB. It proposes a sheet, header row, and column mapping; owners can correct the header row when a report title is mistaken for column names. It supports one-dish-per-row and dish-as-column layouts, DD/MM/YYYY and MM/DD/YYYY dates, and optional summing of repeated transaction rows. The owner checks the mapping and converted sample before the existing validator accepts the data. Missing covers cannot be inferred from sales; obtain them from another source before import. Per-dish costs can be entered in the preview when absent from the file. A confirmed mapping is saved for future uploads with the same sheet headers, separately for each workspace.
+
+Header rules work without an external API. To enable agent suggestions, configure a dedicated `YLD_IMPORT_AGENT_API_KEY` on the API server and optionally `YLD_IMPORT_AGENT_MODEL` (default `gpt-4o-mini`). Only sheet names, headers, and up to three sample rows per sheet are sent for a suggestion; the model's mapping is checked against actual headers before use. Conversion and row validation remain deterministic. The owner previews and confirms an upload. A later import replaces the workspace’s current dishes and service history; download **Current data** before replacing it. No dishes or sales are added automatically.
 
 Forecasts use up to 56 earlier services in a weighted ridge regression. Covers become automatic after 14 recorded service days. With fewer days, enter a cover estimate. History tests up to the last 28 records per dish, but only after that dish has 14 earlier sales records. Its service-date count reflects dates actually tested. Waste comparisons require prepared counts; sales alone cannot establish actual waste.
+
+An optional [Codex model worker](deploy/MODEL_PIPELINE.md) can train a kitchen-specific demand model once a dish has 56 services. It tests a trained candidate against the existing forecast on 14 later services before activating it. The dashboard shows which dishes use a trained forecast and lets the owner return to the standard forecast. The worker is off until its isolated containers, network, and API credentials are configured.
 
 An offline [public-data cover prediction baseline](ml/COVER_BASELINE.md) includes a trained model, source data, and a chronological evaluation. It is separate from workspace forecasts and the inventory modeller.
 

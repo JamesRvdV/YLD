@@ -1,0 +1,105 @@
+{
+  "target": "portions_sold_per_dish_per_service",
+  "source": "https://data.mendeley.com/datasets/xv5kp6mxv7/1",
+  "data_sha256": "a6803f21c35bab3e85d5031e2a456c61a95d28407d0810a4c848b02d15e2b58d",
+  "features": [
+    "dish_CALAMARI",
+    "dish_FISCH",
+    "dish_GARNELEN",
+    "dish_HAEHNCHEN",
+    "dish_KOEFTE",
+    "dish_LAMM",
+    "dish_STEAK",
+    "weekday_0",
+    "weekday_1",
+    "weekday_2",
+    "weekday_3",
+    "weekday_4",
+    "weekday_5",
+    "weekday_6",
+    "month_sin",
+    "month_cos",
+    "dish_last",
+    "dish_recent_7_mean",
+    "dish_recent_28_mean",
+    "dish_same_weekday_4_mean",
+    "total_last",
+    "total_recent_7_mean",
+    "total_recent_28_mean",
+    "total_same_weekday_4_mean",
+    "dish_share_recent_28"
+  ],
+  "service_days": 760,
+  "dishes": [
+    "CALAMARI",
+    "FISCH",
+    "GARNELEN",
+    "HAEHNCHEN",
+    "KOEFTE",
+    "LAMM",
+    "STEAK"
+  ],
+  "train_end": "2015-03-24",
+  "validation_start": "2015-03-25",
+  "validation_end": "2015-06-08",
+  "holdout_start": "2015-06-09",
+  "holdout_end": "2015-11-07",
+  "selection": "Lowest validation MAE",
+  "validation_scores": {
+    "ridge": {
+      "mae": 4.93,
+      "rmse": 6.94
+    },
+    "extra_trees": {
+      "mae": 4.92,
+      "rmse": 7.04
+    },
+    "hist_gradient_boosting": {
+      "mae": 5.06,
+      "rmse": 7.18
+    }
+  },
+  "selected_model": "extra_trees",
+  "holdout_scores": {
+    "extra_trees": {
+      "mae": 4.78,
+      "rmse": 7.08
+    },
+    "same_weekday_last_4": {
+      "mae": 5.21,
+      "rmse": 7.68
+    }
+  },
+  "holdout_by_dish": {
+    "CALAMARI": {
+      "mae": 1.77,
+      "rmse": 2.3
+    },
+    "FISCH": {
+      "mae": 1.76,
+      "rmse": 2.3
+    },
+    "GARNELEN": {
+      "mae": 3.16,
+      "rmse": 4.11
+    },
+    "HAEHNCHEN": {
+      "mae": 7.27,
+      "rmse": 10.56
+    },
+    "KOEFTE": {
+      "mae": 6.53,
+      "rmse": 7.91
+    },
+    "LAMM": {
+      "mae": 7.31,
+      "rmse": 9.73
+    },
+    "STEAK": {
+      "mae": 5.67,
+      "rmse": 7.36
+    }
+  },
+  "one_step_ahead": true,
+  "final_train_samples": 5124
+}
