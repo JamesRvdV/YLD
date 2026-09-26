@@ -6,6 +6,7 @@ import io
 import os
 import sqlite3
 import psycopg
+import stripe
 from psycopg.rows import dict_row
 import hashlib
 import json
@@ -25,7 +26,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -37,6 +38,7 @@ PUBLIC_URL = os.getenv("YLD_PUBLIC_URL", "http://127.0.0.1:5173").rstrip("/")
 SESSION_SECONDS = 7 * 24 * 60 * 60
 LINK_SECONDS = 48 * 60 * 60
 COOKIE_NAME = "yld_session"
+ADMIN_EMAIL = "axel.mckenna7@gmail.com"
 BUSINESS_TZ = ZoneInfo("Pacific/Auckland")
 if os.getenv("YLD_ENV") == "production":
     if not PUBLIC_URL.startswith("https://") or (not DATABASE_URL and not DB_PATH.is_absolute()) or not os.getenv("RESEND_API_KEY") or not os.getenv("YLD_EMAIL_FROM"):
@@ -107,16 +109,25 @@ def init_db():
     with db() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL, activated_at INTEGER);
+        CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL, activated_at INTEGER, password_hash TEXT, failed_logins INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS workspace_dishes (workspace_id TEXT NOT NULL REFERENCES workspaces(id), id TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, price REAL NOT NULL, ingredient_cost REAL NOT NULL, baseline INTEGER NOT NULL, shortage_cost REAL NOT NULL, description TEXT NOT NULL, PRIMARY KEY(workspace_id,id));
         CREATE TABLE IF NOT EXISTS workspace_history (workspace_id TEXT NOT NULL REFERENCES workspaces(id), day TEXT NOT NULL, dish_id TEXT NOT NULL, sold INTEGER NOT NULL, prepared INTEGER NOT NULL, leftover INTEGER NOT NULL, covers INTEGER NOT NULL, PRIMARY KEY(workspace_id,day,dish_id), FOREIGN KEY(workspace_id,dish_id) REFERENCES workspace_dishes(workspace_id,id));
         CREATE TABLE IF NOT EXISTS auth_links (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), kind TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER, created_at INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS auth_links_account ON auth_links(account_id,created_at);
         CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), csrf_token TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
+        CREATE TABLE IF NOT EXISTS workspace_billing (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id), stripe_customer_id TEXT NOT NULL UNIQUE, stripe_subscription_id TEXT NOT NULL UNIQUE, plan TEXT NOT NULL CHECK(plan IN ('local','multi_chain')), status TEXT NOT NULL, last_event_created INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS workspace_checkout (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id), plan TEXT NOT NULL CHECK(plan IN ('local','multi_chain')), idempotency_key TEXT NOT NULL, session_id TEXT, session_url TEXT, expires_at INTEGER NOT NULL);
         """)
         if "data_mode" not in {row[1] for row in conn.execute("PRAGMA table_info(workspaces)")}:
             conn.execute("ALTER TABLE workspaces ADD COLUMN data_mode TEXT NOT NULL DEFAULT 'empty'")
+        account_columns = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
+        if "password_hash" not in account_columns:
+            conn.execute("ALTER TABLE accounts ADD COLUMN password_hash TEXT")
+        if "failed_logins" not in account_columns:
+            conn.execute("ALTER TABLE accounts ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0")
+        if "locked_until" not in account_columns:
+            conn.execute("ALTER TABLE accounts ADD COLUMN locked_until INTEGER NOT NULL DEFAULT 0")
         if "prep_known" not in {row[1] for row in conn.execute("PRAGMA table_info(workspace_history)")}:
             conn.execute("ALTER TABLE workspace_history ADD COLUMN prep_known INTEGER NOT NULL DEFAULT 1")
         # Earlier workspaces had generated menu and service rows. They must
@@ -221,6 +232,28 @@ init_db()
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000)
+    return f"pbkdf2_sha256:600000:{salt.hex()}:{digest.hex()}"
+
+DUMMY_PASSWORD_HASH = hash_password("unused-dummy-password")
+
+def verify_password(password: str, stored: Optional[str]) -> bool:
+    if not stored:
+        return False
+    try:
+        algorithm, rounds, salt, expected = stored.split(":")
+        if algorithm != "pbkdf2_sha256" or int(rounds) != 600_000:
+            return False
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), int(rounds))
+        return secrets.compare_digest(actual, bytes.fromhex(expected))
+    except (ValueError, TypeError):
+        return False
+
+def is_admin(email: str) -> bool:
+    return email == ADMIN_EMAIL
+
 def clean_email(value: str) -> str:
     email = value.strip().lower()
     if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
@@ -238,8 +271,8 @@ def send_link_email(email: str, workspace_name: str, link: str, kind: str, link_
         raise RuntimeError("Set RESEND_API_KEY and YLD_EMAIL_FROM before sending invitations")
     if not PUBLIC_URL.startswith("https://") and not PUBLIC_URL.startswith(("http://localhost:", "http://127.0.0.1:")):
         raise RuntimeError("YLD_PUBLIC_URL must use HTTPS outside local development")
-    action = "Accept your invitation" if kind == "invite" else "Sign in"
-    minutes = "48 hours" if kind == "invite" else "15 minutes"
+    action = "Set your YLD password"
+    minutes = "48 hours"
     payload = {
         "from": sender,
         "to": [email],
@@ -259,12 +292,6 @@ def send_link_email(email: str, workspace_name: str, link: str, kind: str, link_
                 raise RuntimeError("Resend did not accept the email")
     except (HTTPError, URLError) as error:
         raise RuntimeError("Resend could not send the email; check the sender domain and API key") from error
-
-def send_signin_email(email: str, workspace_name: str, link: str):
-    try:
-        send_link_email(email, workspace_name, link, "login", str(uuid.uuid4()))
-    except RuntimeError as error:
-        logger.error("Sign-in email delivery failed: %s", error)
 
 def issue_invite(email: str, workspace_name: Optional[str] = None, workspace_id: Optional[str] = None, send: bool = True) -> str:
     """Trusted server-side operation; intentionally not exposed as a public route."""
@@ -301,11 +328,16 @@ def issue_invite(email: str, workspace_name: Optional[str] = None, workspace_id:
             account_id = existing["id"]
         else:
             account_id = str(uuid.uuid4())
-            conn.execute("INSERT INTO accounts VALUES (?,?,?,?,?,NULL)", (account_id, workspace_id, email, email.split('@')[0], role))
+            conn.execute("INSERT INTO accounts(id,workspace_id,email,name,role,activated_at) VALUES (?,?,?,?,?,NULL)", (account_id, workspace_id, email, email.split('@')[0], role))
         conn.execute("INSERT INTO auth_links VALUES (?,?,?,?,NULL,?)", (token_hash(token), account_id, "invite", now + LINK_SECONDS, now))
     link = invite_url(token)
     if send:
-        send_link_email(email, workspace_name, link, "invite", link_id)
+        try:
+            send_link_email(email, workspace_name, link, "invite", link_id)
+        except Exception:
+            with db() as conn:
+                conn.execute("DELETE FROM auth_links WHERE token_hash=?", (token_hash(token),))
+            raise
     return link
 
 def current_user(request: Request) -> dict:
@@ -326,7 +358,186 @@ def require_csrf(request: Request, user: dict = Depends(current_user)) -> dict:
     return user
 
 def public_user(user: dict) -> dict:
-    return {key: user[key] for key in ("id", "email", "name", "role", "workspace_id", "workspace_name", "csrf_token", "data_mode")}
+    return {**{key: user[key] for key in ("id", "email", "name", "role", "workspace_id", "workspace_name", "csrf_token", "data_mode")}, "is_admin": is_admin(user["email"])}
+
+def stripe_test_ready() -> bool:
+    return (os.getenv("YLD_STRIPE_TEST_CHECKOUT") == "1"
+            and os.getenv("STRIPE_SECRET_KEY", "").startswith("sk_test_")
+            and os.getenv("STRIPE_WEBHOOK_SECRET", "").startswith("whsec_")
+            and all(os.getenv(name, "").startswith("price_") for name in ("STRIPE_PRICE_LOCAL", "STRIPE_PRICE_MULTI_CHAIN")))
+
+def billing_owner(user: dict = Depends(require_csrf)) -> dict:
+    if user["role"] != "owner":
+        raise HTTPException(403, "Only a workspace owner can manage billing")
+    return user
+
+class CheckoutInput(BaseModel):
+    plan: str
+
+@app.get("/api/billing/config")
+def billing_config():
+    return {"test_checkout_enabled": stripe_test_ready()}
+
+@app.get("/api/billing/status")
+def billing_status(user: dict = Depends(current_user)):
+    with db() as conn:
+        row = conn.execute("SELECT plan,status FROM workspace_billing WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+    return {"billing": dict(row) if row else None}
+
+@app.post("/api/billing/checkout")
+def billing_checkout(payload: CheckoutInput, user: dict = Depends(billing_owner)):
+    if not stripe_test_ready():
+        raise HTTPException(503, "Stripe test checkout is not configured")
+    price = {"local": os.getenv("STRIPE_PRICE_LOCAL"), "multi_chain": os.getenv("STRIPE_PRICE_MULTI_CHAIN")}.get(payload.plan)
+    if not price:
+        raise HTTPException(400, "Choose an available plan")
+    now = int(time.time())
+    reservation_key = str(uuid.uuid4())
+    with db() as conn:
+        existing = conn.execute("SELECT status FROM workspace_billing WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+        if existing and existing["status"] != "canceled":
+            raise HTTPException(409, "This workspace already has a subscription. Manage it in Stripe.")
+        conn.execute("DELETE FROM workspace_checkout WHERE workspace_id=? AND expires_at<=?", (user["workspace_id"], now))
+        reserved = conn.execute("INSERT INTO workspace_checkout(workspace_id,plan,idempotency_key,session_id,session_url,expires_at) VALUES (?,?,?,?,?,?) ON CONFLICT(workspace_id) DO NOTHING", (user["workspace_id"], payload.plan, reservation_key, None, None, now + 24 * 3600))
+        if reserved.rowcount != 1:
+            pending = conn.execute("SELECT plan,idempotency_key,session_url FROM workspace_checkout WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+            if pending["plan"] != payload.plan:
+                raise HTTPException(409, "Another plan's checkout is open. Finish it or wait for it to expire.")
+            if pending["session_url"]:
+                return {"url": pending["session_url"]}
+            reservation_key = pending["idempotency_key"]
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price, "quantity": 1}],
+            client_reference_id=user["workspace_id"],
+            customer_email=user["email"],
+            success_url=f"{PUBLIC_URL}/pricing?checkout=success",
+            cancel_url=f"{PUBLIC_URL}/pricing?checkout=cancel",
+            metadata={"workspace_id": user["workspace_id"], "plan": payload.plan},
+            subscription_data={"metadata": {"workspace_id": user["workspace_id"], "plan": payload.plan}},
+            idempotency_key=reservation_key,
+        )
+        with db() as conn:
+            conn.execute("UPDATE workspace_checkout SET session_id=?,session_url=?,expires_at=? WHERE workspace_id=? AND idempotency_key=?", (session.id, session.url, session.expires_at, user["workspace_id"], reservation_key))
+    except Exception:
+        logger.exception("Stripe test checkout could not be created")
+        raise HTTPException(502, "Could not open Stripe checkout") from None
+    return {"url": session.url}
+
+@app.post("/api/billing/checkout/abandon")
+def billing_checkout_abandon(user: dict = Depends(billing_owner)):
+    if not stripe_test_ready():
+        raise HTTPException(503, "Stripe test checkout is not configured")
+    with db() as conn:
+        pending = conn.execute("SELECT idempotency_key,session_id FROM workspace_checkout WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+    if not pending:
+        return {"ok": True}
+    if not pending["session_id"]:
+        raise HTTPException(409, "Checkout is still opening. Try again shortly.")
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    try:
+        session = stripe.checkout.Session.retrieve(pending["session_id"])
+        if session.status == "complete":
+            raise HTTPException(409, "Checkout completed. Wait for Stripe to confirm the subscription.")
+        if session.status == "open":
+            stripe.checkout.Session.expire(pending["session_id"])
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Stripe test checkout could not be abandoned")
+        raise HTTPException(502, "Could not cancel the open checkout") from None
+    with db() as conn:
+        conn.execute("DELETE FROM workspace_checkout WHERE workspace_id=? AND idempotency_key=?", (user["workspace_id"], pending["idempotency_key"]))
+    return {"ok": True}
+
+def record_subscription(subscription, created: int, source: str):
+    metadata = subscription.get("metadata") or {}
+    workspace_id, plan = metadata.get("workspace_id"), metadata.get("plan")
+    customer_id, subscription_id = subscription.get("customer"), subscription.get("id")
+    if not all((workspace_id, plan in ("local", "multi_chain"), customer_id, subscription_id)):
+        logger.error("Stripe subscription missing YLD metadata: %s", source)
+        raise HTTPException(400, "Subscription metadata is incomplete")
+    with db() as conn:
+        workspace = conn.execute("SELECT id FROM workspaces WHERE id=?", (workspace_id,)).fetchone()
+        if not workspace:
+            raise HTTPException(400, "Unknown workspace")
+        existing = conn.execute("SELECT stripe_subscription_id,status,last_event_created FROM workspace_billing WHERE workspace_id=?", (workspace_id,)).fetchone()
+        if existing and existing["stripe_subscription_id"] != subscription_id and existing["status"] != "canceled":
+            logger.error("Conflicting Stripe subscriptions for workspace %s", workspace_id)
+            raise HTTPException(409, "Workspace has another subscription")
+        if not existing or (existing["stripe_subscription_id"] != subscription_id and existing["status"] == "canceled") or created >= existing["last_event_created"]:
+            conn.execute("""INSERT INTO workspace_billing(workspace_id,stripe_customer_id,stripe_subscription_id,plan,status,last_event_created,updated_at)
+                VALUES(?,?,?,?,?,?,?) ON CONFLICT(workspace_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,
+                stripe_subscription_id=excluded.stripe_subscription_id,plan=excluded.plan,status=excluded.status,
+                last_event_created=excluded.last_event_created,updated_at=excluded.updated_at""",
+                (workspace_id, customer_id, subscription_id, plan, subscription["status"], created, int(time.time())))
+            conn.execute("DELETE FROM workspace_checkout WHERE workspace_id=?", (workspace_id,))
+    return workspace_id
+
+@app.post("/api/billing/checkout/verify")
+def billing_checkout_verify(user: dict = Depends(billing_owner)):
+    if not stripe_test_ready():
+        raise HTTPException(503, "Stripe test checkout is not configured")
+    with db() as conn:
+        pending = conn.execute("SELECT session_id FROM workspace_checkout WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+        billing = conn.execute("SELECT plan,status FROM workspace_billing WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+    if billing and billing["status"] != "canceled":
+        return {"billing": dict(billing), "checkout": "complete"}
+    if not pending or not pending["session_id"]:
+        return {"billing": dict(billing) if billing else None, "checkout": "unavailable"}
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    try:
+        session = stripe.checkout.Session.retrieve(pending["session_id"])
+        if session.status == "expired":
+            with db() as conn:
+                conn.execute("DELETE FROM workspace_checkout WHERE workspace_id=? AND session_id=?", (user["workspace_id"], pending["session_id"]))
+            return {"billing": None, "checkout": "expired"}
+        if session.status == "complete" and not session.subscription:
+            return {"billing": None, "checkout": "pending"}
+        if session.status != "complete":
+            return {"billing": None, "checkout": "open", "url": session.url}
+        subscription = stripe.Subscription.retrieve(session.subscription)
+    except Exception:
+        logger.exception("Stripe test checkout could not be verified")
+        raise HTTPException(502, "Could not check Stripe checkout") from None
+    if subscription.get("livemode") or (subscription.get("metadata") or {}).get("workspace_id") != user["workspace_id"]:
+        raise HTTPException(400, "Stripe subscription does not match this workspace")
+    record_subscription(subscription, int(subscription["created"]), subscription["id"])
+    return {"billing": {"plan": subscription["metadata"]["plan"], "status": subscription["status"]}, "checkout": "complete"}
+
+@app.post("/api/billing/portal")
+def billing_portal(user: dict = Depends(billing_owner)):
+    if not stripe_test_ready():
+        raise HTTPException(503, "Stripe test billing is not configured")
+    with db() as conn:
+        row = conn.execute("SELECT stripe_customer_id FROM workspace_billing WHERE workspace_id=?", (user["workspace_id"],)).fetchone()
+    if not row:
+        raise HTTPException(404, "No subscription for this workspace")
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    try:
+        session = stripe.billing_portal.Session.create(customer=row["stripe_customer_id"], return_url=f"{PUBLIC_URL}/pricing")
+    except Exception:
+        logger.exception("Stripe test billing portal could not be created")
+        raise HTTPException(502, "Could not open Stripe billing") from None
+    return {"url": session.url}
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    if not stripe_test_ready():
+        raise HTTPException(503, "Stripe test billing is not configured")
+    signature = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(await request.body(), signature, os.environ["STRIPE_WEBHOOK_SECRET"])
+    except (ValueError, stripe.error.SignatureVerificationError):
+        raise HTTPException(400, "Invalid Stripe signature") from None
+    if event.get("livemode"):
+        raise HTTPException(400, "Live Stripe events are not accepted")
+    if event["type"] not in ("customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"):
+        return {"received": True}
+    record_subscription(event["data"]["object"], int(event["created"]), event["id"])
+    return {"received": True}
 
 def history(conn, workspace_id: str, dish_id: str):
     return [dict(r) for r in conn.execute("SELECT * FROM workspace_history WHERE workspace_id=? AND dish_id=? ORDER BY day", (workspace_id, dish_id))]
@@ -459,8 +670,8 @@ def build_plan(workspace_id: str, covers: Optional[int], event_boost: int, waste
             mu, sigma = forecast(h, covers, tomorrow, event_boost)
             lost_sale_cost = dish["price"] - dish["ingredient_cost"] + dish["shortage_cost"]
             _, qty, expected_leftover, expected_missed = optimize(mu, sigma, dish["ingredient_cost"], lost_sale_cost, waste_weight)
-            previous = h[-1]["prepared"] if h else dish["baseline"]
-            rows.append({**dish, "forecast": round(mu, 1), "confidence_low": max(0, round(mu-1.28*sigma)), "confidence_high": round(mu+1.28*sigma), "prep": qty, "previous_prep": previous, "delta": qty-previous, "expected_leftover": round(expected_leftover, 1), "expected_missed": round(expected_missed, 1), "history": h})
+            previous = next((row["prepared"] for row in reversed(h) if row["prep_known"]), None)
+            rows.append({**dish, "forecast": round(mu, 1), "confidence_low": max(0, round(mu-1.28*sigma)), "confidence_high": round(mu+1.28*sigma), "prep": qty, "previous_prep": previous, "delta": qty-previous if previous is not None else None, "expected_leftover": round(expected_leftover, 1), "expected_missed": round(expected_missed, 1), "history": h})
         baseline_waste = sum(sum(r["leftover"] * d["ingredient_cost"] for r in d["history"][-28:] if r["prep_known"]) for d in rows)
         known_days = {r["day"] for d in rows for r in d["history"][-28:] if r["prep_known"]}
         expected_waste = sum(d["expected_leftover"] * d["ingredient_cost"] for d in rows)
@@ -489,8 +700,16 @@ class ActualInput(BaseModel):
 class EmailInput(BaseModel):
     email: str = Field(min_length=3, max_length=254)
 
+class LoginInput(EmailInput):
+    password: str = Field(min_length=1, max_length=256)
+
 class RedeemInput(BaseModel):
     token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=12, max_length=256)
+
+class AdminInviteInput(EmailInput):
+    workspace_name: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 class DishCostsInput(BaseModel):
     ingredient_cost: float = Field(gt=0, le=10000)
@@ -508,30 +727,54 @@ def health():
 def me(user: dict = Depends(current_user)):
     return {"user": public_user(user)}
 
-@app.post("/api/auth/request-link")
-def request_link(payload: EmailInput, background_tasks: BackgroundTasks):
+@app.post("/api/auth/login")
+def login(payload: LoginInput, response: Response):
     try:
         email = clean_email(payload.email)
     except ValueError:
         raise HTTPException(422, "Enter a valid email address")
-    if not os.getenv("RESEND_API_KEY") or not os.getenv("YLD_EMAIL_FROM"):
-        raise HTTPException(503, "Email sign-in is not configured")
     now = int(time.time())
     with db() as conn:
-        account = conn.execute("SELECT a.id,w.name AS workspace_name FROM accounts a JOIN workspaces w ON w.id=a.workspace_id WHERE a.email=? AND a.activated_at IS NOT NULL", (email,)).fetchone()
-        if account:
-            recent = conn.execute("SELECT COUNT(*) AS count FROM auth_links WHERE account_id=? AND created_at>?", (account["id"], now - 3600)).fetchone()["count"]
-            if recent < 3:
-                token = secrets.token_urlsafe(32)
-                conn.execute("INSERT INTO auth_links VALUES (?,?,?,?,NULL,?)", (token_hash(token), account["id"], "login", now + 15 * 60, now))
-                link = invite_url(token)
-            else:
-                link = None
+        account = conn.execute("SELECT id,password_hash,failed_logins,locked_until FROM accounts WHERE email=? AND activated_at IS NOT NULL", (email,)).fetchone()
+        # Keep the response and password-work similar for unknown addresses.
+        valid = verify_password(payload.password, (account["password_hash"] if account else None) or DUMMY_PASSWORD_HASH)
+        denied = not account or not account["password_hash"] or not valid or account["locked_until"] > now
+        if denied:
+            if account and account["locked_until"] <= now:
+                failures = account["failed_logins"] + 1
+                conn.execute("UPDATE accounts SET failed_logins=?,locked_until=? WHERE id=?", (failures if failures < 5 else 0, now + 15 * 60 if failures >= 5 else 0, account["id"]))
         else:
-            link = None
-    if account and link:
-        background_tasks.add_task(send_signin_email, email, account["workspace_name"], link)
-    return {"ok": True, "message": "If this address has access, a sign-in link is on its way."}
+            conn.execute("UPDATE accounts SET failed_logins=0,locked_until=0 WHERE id=?", (account["id"],))
+            session_token = secrets.token_urlsafe(32)
+            csrf_token = secrets.token_urlsafe(24)
+            conn.execute("INSERT INTO sessions VALUES (?,?,?,?,?)", (token_hash(session_token), account["id"], csrf_token, now + SESSION_SECONDS, now))
+    if denied:
+        raise HTTPException(401, "Invalid email or password")
+    response.set_cookie(COOKIE_NAME, session_token, max_age=SESSION_SECONDS, httponly=True, secure=PUBLIC_URL.startswith("https://"), samesite="lax", path="/")
+    return {"ok": True}
+
+@app.get("/api/admin/workspaces")
+def admin_workspaces(user: dict = Depends(current_user)):
+    if not is_admin(user["email"]):
+        raise HTTPException(403, "Admin access required")
+    with db() as conn:
+        rows = conn.execute("SELECT id,name FROM workspaces ORDER BY name").fetchall()
+    return {"workspaces": [dict(row) for row in rows]}
+
+@app.post("/api/admin/invitations")
+def admin_invite(payload: AdminInviteInput, user: dict = Depends(require_csrf)):
+    if not is_admin(user["email"]):
+        raise HTTPException(403, "Admin access required")
+    if not os.getenv("RESEND_API_KEY") or not os.getenv("YLD_EMAIL_FROM"):
+        raise HTTPException(503, "Invitation email is not configured")
+    try:
+        issue_invite(payload.email, workspace_name=payload.workspace_name, workspace_id=payload.workspace_id)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    except RuntimeError as error:
+        logger.error("Invitation email delivery failed: %s", error)
+        raise HTTPException(503, "Invitation email could not be sent") from error
+    return {"ok": True}
 
 @app.post("/api/auth/redeem")
 def redeem(payload: RedeemInput, response: Response):
@@ -539,13 +782,15 @@ def redeem(payload: RedeemInput, response: Response):
     session_token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(24)
     with db() as conn:
-        link = conn.execute("SELECT account_id FROM auth_links WHERE token_hash=? AND used_at IS NULL AND expires_at>?", (token_hash(payload.token), now)).fetchone()
+        link = conn.execute("SELECT account_id FROM auth_links WHERE token_hash=? AND kind='invite' AND used_at IS NULL AND expires_at>?", (token_hash(payload.token), now)).fetchone()
         if not link:
             raise HTTPException(400, "This link has expired or has already been used")
         claimed = conn.execute("UPDATE auth_links SET used_at=? WHERE token_hash=? AND used_at IS NULL", (now, token_hash(payload.token)))
         if claimed.rowcount != 1:
             raise HTTPException(400, "This link has already been used")
-        conn.execute("UPDATE accounts SET activated_at=COALESCE(activated_at,?) WHERE id=?", (now, link["account_id"]))
+        conn.execute("UPDATE accounts SET activated_at=COALESCE(activated_at,?),password_hash=?,failed_logins=0,locked_until=0 WHERE id=?", (now, hash_password(payload.password), link["account_id"]))
+        conn.execute("UPDATE auth_links SET used_at=? WHERE account_id=? AND used_at IS NULL", (now, link["account_id"]))
+        conn.execute("DELETE FROM sessions WHERE account_id=?", (link["account_id"],))
         conn.execute("INSERT INTO sessions VALUES (?,?,?,?,?)", (token_hash(session_token), link["account_id"], csrf_token, now + SESSION_SECONDS, now))
     response.set_cookie(COOKIE_NAME, session_token, max_age=SESSION_SECONDS, httponly=True, secure=PUBLIC_URL.startswith("https://"), samesite="lax", path="/")
     return {"ok": True}

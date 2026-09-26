@@ -13,8 +13,8 @@ type Dish = {
   confidence_low: number
   confidence_high: number
   prep: number
-  previous_prep: number
-  delta: number
+  previous_prep: number | null
+  delta: number | null
   expected_leftover: number
   expected_missed: number
 }
@@ -54,7 +54,7 @@ const localDate = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 const longDate = (value: string) => new Date(value + 'T12:00:00').toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' })
-export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user: SessionUser; onSignOut: () => void; onAuthLost: () => void }) {
+export default function ProductDashboard({ user, onSignOut, onAuthLost, onAdmin }: { user: SessionUser; onSignOut: () => void; onAuthLost: () => void; onAdmin: () => void }) {
   const [view, setView] = useState<View>(user.data_mode === 'empty' ? 'import' : 'plan')
   const [hasData, setHasData] = useState(user.data_mode === 'imported')
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -270,6 +270,7 @@ export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user
       <button className="product-brand" onClick={() => setView('plan')} aria-label="YLD plan">YLD<span>.</span></button>
       <nav className="product-nav" aria-label="Planner navigation">
         {(hasData ? ['plan', 'history', 'costs', 'import'] as const : ['import'] as const).map(item => <button key={item} className={view === item ? 'active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => { setView(item); setError(''); setNotice('') }}>{item === 'costs' ? 'MENU COSTS' : item === 'import' ? 'IMPORT CSV' : item.toUpperCase()}</button>)}
+        {user.is_admin && <button onClick={onAdmin}>ADMIN</button>}
       </nav>
       <button className="product-signout" onClick={onSignOut}>SIGN OUT ↗</button>
     </header>
@@ -305,7 +306,7 @@ export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user
           <div className="product-dish-list">
             {plan?.dishes.map(dish => <article className="product-dish" key={dish.id}>
               <div className="product-dish-name"><h3>{dish.name}</h3><span>{dish.category} · {unitMoney(dish.ingredient_cost)} INGREDIENT COST</span></div>
-              <div className="product-dish-quantity"><span>PREP</span><strong>{dish.prep}</strong><small>{dish.delta > 0 ? '+' : ''}{dish.delta} VS LAST PREP</small></div>
+              <div className="product-dish-quantity"><span>PREP</span><strong>{dish.prep}</strong><small>{dish.delta === null ? 'PREP NOT RECORDED' : `${dish.delta > 0 ? '+' : ''}${dish.delta} VS LAST RECORDED PREP`}</small></div>
               <div className="product-dish-detail"><span>DEMAND FORECAST</span><strong>{dish.forecast}</strong><small>{dish.confidence_low}–{dish.confidence_high} likely range</small></div>
               <div className="product-dish-detail"><span>EXPECTED LEFTOVER</span><strong>{dish.expected_leftover}</strong><small>{unitMoney(dish.expected_leftover * dish.ingredient_cost)} of ingredients</small></div>
               <button className="product-row-action" onClick={() => openActual(dish)}>LOG ACTUAL <span>→</span></button>

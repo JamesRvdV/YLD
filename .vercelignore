@@ -1,0 +1,6 @@
+api/
+deploy/
+supabase/
+tests/
+.env*
+*.db

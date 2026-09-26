@@ -1,0 +1,77 @@
+{
+  "features": [
+    "weekday_0",
+    "weekday_1",
+    "weekday_2",
+    "weekday_3",
+    "weekday_4",
+    "weekday_5",
+    "weekday_6",
+    "last_service",
+    "recent_7_mean",
+    "recent_28_mean",
+    "same_weekday_4_mean"
+  ],
+  "means": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    182.79056386651322,
+    182.8430050961696,
+    182.96354594772313,
+    182.9836018411968
+  ],
+  "scales": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    18.464966443457296,
+    7.649679061777367,
+    5.724015331144322,
+    13.969022065825929
+  ],
+  "coefficients": [
+    182.7907220052715,
+    -4.5449194272972875,
+    -5.950023316452261,
+    -4.284715144438428,
+    -3.0841930844442884,
+    3.4144014539313225,
+    9.680611487339991,
+    4.768838031360417,
+    1.7830776984511822,
+    0.1393536128024613,
+    1.6987806673232984,
+    4.653721458309478
+  ],
+  "penalty": 20.0,
+  "training": {
+    "target": "inside_covers",
+    "evaluation_train_services": 717,
+    "evaluation_train_samples": 689,
+    "final_train_services": 897,
+    "final_train_samples": 869,
+    "holdout_services": 180,
+    "train_end": "2018-12-30",
+    "holdout_start": "2018-12-31",
+    "holdout_end": "2019-06-30",
+    "one_step_ahead": true,
+    "model": {
+      "mae": 10.58,
+      "rmse": 20.01
+    },
+    "same_weekday_last_4": {
+      "mae": 12.06,
+      "rmse": 21.33
+    },
+    "data_sha256": "df2abeacaa4242343003efcf7a8a7d099f186683be41628e064e92a8fe2bb497"
+  }
+}

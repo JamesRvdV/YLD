@@ -1,0 +1,59 @@
+{
+  "target": "inside_covers",
+  "data_sha256": "df2abeacaa4242343003efcf7a8a7d099f186683be41628e064e92a8fe2bb497",
+  "features": [
+    "weekday_0",
+    "weekday_1",
+    "weekday_2",
+    "weekday_3",
+    "weekday_4",
+    "weekday_5",
+    "weekday_6",
+    "last_service",
+    "recent_7_mean",
+    "recent_28_mean",
+    "same_weekday_4_mean"
+  ],
+  "selection": "Lowest validation MAE among the three tree models",
+  "chosen_tree": "extra_trees",
+  "train_end": "2018-09-27",
+  "validation_start": "2018-09-28",
+  "validation_end": "2018-12-30",
+  "holdout_start": "2018-12-31",
+  "holdout_end": "2019-06-30",
+  "validation_scores": {
+    "hist_gradient_boosting": {
+      "mae": 10.77,
+      "rmse": 19.14
+    },
+    "random_forest": {
+      "mae": 10.91,
+      "rmse": 18.99
+    },
+    "extra_trees": {
+      "mae": 10.46,
+      "rmse": 18.69
+    },
+    "ridge": {
+      "mae": 10.74,
+      "rmse": 18.96
+    }
+  },
+  "holdout_scores": {
+    "extra_trees": {
+      "mae": 10.33,
+      "rmse": 19.83
+    },
+    "ridge": {
+      "mae": 10.58,
+      "rmse": 20.01
+    }
+  },
+  "ridge_mae_minus_tree_mae_95pct_weekly_bootstrap": [
+    -0.1,
+    0.63
+  ],
+  "final_train_services": 897,
+  "final_train_samples": 869,
+  "one_step_ahead": true
+}

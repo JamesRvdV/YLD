@@ -48,6 +48,7 @@ def asgi_request(app, method, path, body=None, cookie=None, csrf=None, client_ip
 
 
 class AuthTest(unittest.TestCase):
+    password = "a-strong-test-password"
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.previous_db = os.environ.get("YLD_DB_PATH")
@@ -70,7 +71,7 @@ class AuthTest(unittest.TestCase):
     def redeem(self, email, workspace):
         link = self.module.issue_invite(email, workspace_name=workspace, send=False)
         token = parse_qs(urlparse(link).fragment)["token"][0]
-        status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token})
+        status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token, "password": self.password})
         self.assertEqual(status, 200)
         cookies = SimpleCookie()
         cookies.load(headers[b"set-cookie"].decode())
@@ -93,7 +94,7 @@ class AuthTest(unittest.TestCase):
         first_token, first_cookie, first = self.redeem("chef@first.example", "First Kitchen")
         _, second_cookie, second = self.redeem("chef@second.example", "Second Kitchen")
         self.assertNotEqual(first["workspace_id"], second["workspace_id"])
-        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": first_token})[0], 400)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": first_token, "password": self.password})[0], 400)
         self.assertEqual(first["data_mode"], "empty")
         self.assertEqual(asgi_request(self.module.app, "POST", "/api/plan", {}, cookie=first_cookie)[2]["detail"]["code"], "import_needed")
         for cookie, user in ((first_cookie, first), (second_cookie, second)):
@@ -150,7 +151,7 @@ class AuthTest(unittest.TestCase):
         token = parse_qs(urlparse(link).fragment)["token"][0]
         with self.module.db() as conn:
             conn.execute("UPDATE auth_links SET expires_at=0 WHERE token_hash=?", (self.module.token_hash(token),))
-        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token})[0], 400)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token, "password": self.password})[0], 400)
 
     def test_resend_invitation_payload(self):
         result = MagicMock()
@@ -166,30 +167,67 @@ class AuthTest(unittest.TestCase):
         self.assertIn("A &amp; B Kitchen", payload["html"])
         self.assertIn("https://example.com/invite#token=secret", payload["text"])
 
-    def test_existing_account_gets_login_link_without_account_enumeration(self):
-        self.redeem("chef@example.com", "Sample Kitchen")
-        with patch.dict(os.environ, {"RESEND_API_KEY": "test-key", "YLD_EMAIL_FROM": "YLD <invites@example.com>"}), patch.object(self.module, "send_signin_email") as send:
-            status, _, known = asgi_request(self.module.app, "POST", "/api/auth/request-link", {"email": "chef@example.com"})
-            self.assertEqual(status, 200)
-            self.assertEqual(send.call_count, 1)
-            login_link = send.call_args.args[2]
-            status, _, unknown = asgi_request(self.module.app, "POST", "/api/auth/request-link", {"email": "absent@example.com"})
-            self.assertEqual(status, 200)
-            self.assertEqual(known, unknown)
-            self.assertEqual(send.call_count, 1)
-        token = parse_qs(urlparse(login_link).fragment)["token"][0]
-        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token})[0], 200)
+    def test_failed_invitation_delivery_preserves_previous_link(self):
+        first = self.module.issue_invite("chef@example.com", workspace_name="Test Kitchen", send=False)
+        first_token = parse_qs(urlparse(first).fragment)["token"][0]
+        with patch.object(self.module, "send_link_email", side_effect=RuntimeError("delivery failed")):
+            with self.assertRaises(RuntimeError):
+                self.module.issue_invite("chef@example.com", workspace_name="Test Kitchen")
+        with self.module.db() as conn:
+            links = conn.execute("SELECT COUNT(*) AS count FROM auth_links WHERE account_id=(SELECT id FROM accounts WHERE email=?) AND used_at IS NULL", ("chef@example.com",)).fetchone()["count"]
+        self.assertEqual(links, 1)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": first_token, "password": self.password})[0], 200)
 
-    def test_login_requires_email_delivery(self):
-        self.redeem("chef@example.com", "Test Kitchen")
-        with patch.dict(os.environ, {"RESEND_API_KEY": "", "YLD_EMAIL_FROM": ""}):
-            self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/request-link", {"email": "chef@example.com"})[0], 503)
+    def test_redeeming_one_invitation_invalidates_other_outstanding_links(self):
+        first = self.module.issue_invite("chef@example.com", workspace_name="Test Kitchen", send=False)
+        second = self.module.issue_invite("chef@example.com", workspace_name="Test Kitchen", send=False)
+        first_token = parse_qs(urlparse(first).fragment)["token"][0]
+        second_token = parse_qs(urlparse(second).fragment)["token"][0]
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": second_token, "password": self.password})[0], 200)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": first_token, "password": self.password})[0], 400)
+
+    def test_password_login_and_admin_only_invitations(self):
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/request-link", {"email": "chef@example.com"})[0], 405)
+        _, chef_cookie, chef = self.redeem("chef@example.com", "Sample Kitchen")
+        self.assertFalse(chef["is_admin"])
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/login", {"email": "chef@example.com", "password": "wrong"})[0], 401)
+        status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/login", {"email": "chef@example.com", "password": self.password})
+        self.assertEqual(status, 200)
+        self.assertIn(b"set-cookie", headers)
+        self.assertEqual(asgi_request(self.module.app, "GET", "/api/admin/workspaces", cookie=chef_cookie)[0], 403)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/admin/invitations", {"email": "guest@example.com", "workspace_name": "Guest"}, cookie=chef_cookie, csrf=chef["csrf_token"])[0], 403)
+        _, admin_cookie, admin = self.redeem(self.module.ADMIN_EMAIL, "Admin Kitchen")
+        self.assertTrue(admin["is_admin"])
+        self.assertEqual(asgi_request(self.module.app, "GET", "/api/admin/workspaces", cookie=admin_cookie)[0], 200)
+        with patch.dict(os.environ, {"RESEND_API_KEY": "test-key", "YLD_EMAIL_FROM": "YLD <invites@example.com>"}), patch.object(self.module, "send_link_email") as send:
+            invite = {"email": "guest@example.com", "workspace_name": "Guest Kitchen"}
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/admin/invitations", invite, cookie=admin_cookie)[0], 403)
+            self.assertEqual(asgi_request(self.module.app, "POST", "/api/admin/invitations", invite, cookie=admin_cookie, csrf=admin["csrf_token"])[0], 200)
+            self.assertEqual(send.call_count, 1)
+            link = send.call_args.args[2]
+        token = parse_qs(urlparse(link).fragment)["token"][0]
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token})[0], 422)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token, "password": self.password})[0], 200)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/login", {"email": "guest@example.com", "password": self.password})[0], 200)
+
+    def test_admin_resets_existing_password_and_revokes_sessions(self):
+        _, admin_cookie, admin = self.redeem(self.module.ADMIN_EMAIL, "Admin Kitchen")
+        _, old_cookie, old_user = self.redeem("chef@example.com", "Test Kitchen")
+        with patch.dict(os.environ, {"RESEND_API_KEY": "test-key", "YLD_EMAIL_FROM": "YLD <invites@example.com>"}), patch.object(self.module, "send_link_email") as send:
+            status, _, _ = asgi_request(self.module.app, "POST", "/api/admin/invitations", {"email": "chef@example.com", "workspace_id": old_user["workspace_id"]}, cookie=admin_cookie, csrf=admin["csrf_token"])
+            self.assertEqual(status, 200)
+            link = send.call_args.args[2]
+        token = parse_qs(urlparse(link).fragment)["token"][0]
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token, "password": "another-strong-password"})[0], 200)
+        self.assertEqual(asgi_request(self.module.app, "GET", "/api/auth/me", cookie=old_cookie)[0], 401)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/login", {"email": "chef@example.com", "password": self.password})[0], 401)
+        self.assertEqual(asgi_request(self.module.app, "POST", "/api/auth/login", {"email": "chef@example.com", "password": "another-strong-password"})[0], 200)
 
     def test_old_generated_workspace_is_cleared_on_startup(self):
         _, owner_cookie, owner = self.redeem("owner@example.com", "Former Kitchen")
         member_link = self.module.issue_invite("member@example.com", workspace_id=owner["workspace_id"], send=False)
         member_token = parse_qs(urlparse(member_link).fragment)["token"][0]
-        status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": member_token})
+        status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": member_token, "password": self.password})
         self.assertEqual(status, 200)
         cookies = SimpleCookie()
         cookies.load(headers[b"set-cookie"].decode())
@@ -246,6 +284,8 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text}, cookie=cookie, csrf=user["csrf_token"])[0], 200)
         plan = asgi_request(self.module.app, "POST", "/api/plan", {}, cookie=cookie)[2]
         self.assertEqual(len(plan["dishes"]), 1)
+        self.assertIsNone(plan["dishes"][0]["previous_prep"])
+        self.assertIsNone(plan["dishes"][0]["delta"])
         self.assertIsNone(plan["summary"]["usual_waste"])
         self.assertFalse(plan["backtest"]["available"])
         bad_csv = csv_text + "\n" + lines[-1]
@@ -258,6 +298,7 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(asgi_request(self.module.app, "POST", "/api/actuals", {"day": today, "covers": 55, "dish_id": dish_id, "prepared": 18, "sold": 15}, cookie=cookie, csrf=user["csrf_token"])[0], 200)
         updated = asgi_request(self.module.app, "POST", "/api/plan", {}, cookie=cookie)[2]
         self.assertEqual(updated["summary"]["usual_waste"], 9)
+        self.assertEqual(updated["dishes"][0]["previous_prep"], 18)
 
     def test_backtest_counts_distinct_service_dates_with_sparseness(self):
         _, cookie, user = self.redeem("owner@example.com", "Changing Menu")
@@ -339,23 +380,23 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(plan["dishes"][0]["name"], "Pumpkin soup")
         self.assertEqual(plan["dishes"][0]["ingredient_cost"], 2.75)
 
-    def test_preview_cli_prints_link_but_production_refuses(self):
+    def test_bootstrap_cli_only_prints_admin_link(self):
         project_root = Path(__file__).resolve().parents[1]
-        command = [sys.executable, "-m", "api.invite", "--email", "owner@example.com", "--workspace", "Preview Kitchen", "--print-link"]
+        command = [sys.executable, "-m", "api.invite", "--email", "axel.mckenna7@gmail.com", "--workspace", "Preview Kitchen"]
         environment = {**os.environ, "YLD_DB_PATH": str(Path(self.temp_dir.name) / "cli.db"), "YLD_PUBLIC_URL": "https://yld.nz", "YLD_ENV": "preview"}
         preview = subprocess.run(command, cwd=project_root, env=environment, capture_output=True, text=True, timeout=10)
         self.assertEqual(preview.returncode, 0, preview.stderr)
         self.assertTrue(preview.stdout.strip().startswith("https://yld.nz/invite#token="))
 
-        production = subprocess.run(command, cwd=project_root, env={**environment, "YLD_ENV": "production", "RESEND_API_KEY": "test-only", "YLD_EMAIL_FROM": "YLD <invites@example.com>"}, capture_output=True, text=True, timeout=10)
-        self.assertNotEqual(production.returncode, 0)
-        self.assertIn("--print-link is disabled in production", production.stderr)
+        other = subprocess.run([*command[:4], "other@example.com", *command[5:]], cwd=project_root, env=environment, capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(other.returncode, 0)
+        self.assertIn("Only the designated admin", other.stderr)
 
     def test_https_session_cookie_is_secure(self):
         with patch.object(self.module, "PUBLIC_URL", "https://yld.example"):
             link = self.module.issue_invite("chef@example.com", workspace_name="Sample Kitchen", send=False)
             token = parse_qs(urlparse(link).fragment)["token"][0]
-            status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token})
+            status, headers, _ = asgi_request(self.module.app, "POST", "/api/auth/redeem", {"token": token, "password": self.password})
             self.assertEqual(status, 200)
             self.assertIn(b"Secure", headers[b"set-cookie"])
             self.assertEqual(headers[b"strict-transport-security"], b"max-age=31536000")

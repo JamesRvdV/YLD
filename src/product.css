@@ -110,6 +110,121 @@ html body #root .pricing-page .price-grid article.featured h2,
 html body #root .pricing-page .price-grid article.featured strong,
 html body #root .pricing-page .price-grid article.featured p { color: #f3f1eb !important; }
 html body #root .pricing-page .price-grid article.featured { background: #111 !important; }
+html body #root .pricing-page .pricing-intro {
+  display: block;
+  border-bottom: 0 !important;
+}
+html body #root .how-page .how-intro { display: block; }
+html body #root .how-page .how-flow { padding: 44px clamp(20px, 4vw, 64px) 0; }
+html body #root .how-page .how-flow ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(22px, 3vw, 42px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+html body #root .how-page .how-flow li {
+  position: relative;
+  display: flex;
+  min-height: 345px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+  border: 1px solid #111;
+  background: #e8e7e2;
+}
+html body #root .how-page .how-flow-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+html body #root .how-page .how-flow-copy h2 {
+  margin: 0 0 16px;
+  font-size: clamp(26px, 2.7vw, 40px);
+  line-height: .9;
+  letter-spacing: -.06em;
+}
+html body #root .how-page .how-flow-copy p {
+  max-width: 260px;
+  margin: 0;
+  color: #333;
+  font-size: 13px;
+  line-height: 1.45;
+}
+html body #root .how-page .how-flow-arrow {
+  position: absolute;
+  z-index: 2;
+  top: calc(50% - 18px);
+  right: -27px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #111;
+  border-radius: 50%;
+  color: #e8e7e2;
+  background: #111;
+  font-size: 22px;
+  line-height: 1;
+}
+html body #root .how-page .how-flow-loop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 18px 0 0;
+  border-top: 1px solid #111;
+  color: #111;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+html body #root .how-page .how-flow-loop span { font-size: 26px; line-height: 1; }
+html body #root .landing .service-intro .step-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+@media (max-width: 900px) {
+  html body #root .how-page .how-flow ol { grid-template-columns: 1fr; gap: 38px; }
+  html body #root .how-page .how-flow li { min-height: 220px; }
+  html body #root .how-page .how-flow-copy h2 { font-size: clamp(28px, 7vw, 40px); }
+  html body #root .how-page .how-flow-arrow {
+    top: auto;
+    right: auto;
+    bottom: -27px;
+    left: calc(50% - 18px);
+    transform: rotate(90deg);
+  }
+}
+@media (max-width: 700px) {
+  html body #root .landing .service-intro .step-grid { display: block !important; }
+}
+html body #root .pricing-page .pricing-intro h1 em,
+html body #root .pricing-page .pricing-nav .brand span {
+  color: #111 !important;
+}
+html body #root .pricing-page .price-grid {
+  gap: clamp(18px, 2.5vw, 32px);
+  border-left: 0 !important;
+  margin-bottom: clamp(40px, 5vw, 72px);
+}
+html body #root .pricing-page .price-grid article {
+  border: 1px solid #111 !important;
+}
+html body #root .pricing-page .price-grid h2 {
+  font-size: clamp(29px, 3vw, 43px);
+}
+html body #root .pricing-page .price-grid strong {
+  font-size: clamp(46px, 5vw, 74px);
+}
+@media (max-width: 700px) {
+  html body #root .pricing-page .price-grid strong {
+    font-size: clamp(50px, 16vw, 74px);
+  }
+}
 html body #root .pricing-page .price-grid article button,
 html body #root .how-close button,
 html body #root .flagship-copy button { min-height: 44px !important; }
@@ -342,6 +457,80 @@ html body #root :is(.landing, .pricing-page, .how-page, .auth-page) :is(button, 
 .product-file-label input { max-width: 260px; margin-left: 12px; font-size: 12px; }
 .product-import-preview { display: grid; gap: 12px; padding: 20px; border: 1px solid #171717; background: #e5e8dc; }
 .product-import-preview strong { font-size: 28px; letter-spacing: -.05em; }
+
+/* One navigation system across marketing, legal, and account entry pages. */
+html body #root .public-nav {
+  display: flex !important;
+  height: 76px !important;
+  min-height: 76px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 clamp(18px, 4vw, 64px) !important;
+  border-bottom: 1px solid #111 !important;
+  color: #111 !important;
+  background: #e8e7e2 !important;
+}
+html body #root .public-nav .brand,
+html body #root .public-nav .brand span { color: #111 !important; }
+html body #root .public-nav .landing-links {
+  display: flex !important;
+  flex: 1 !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: auto !important;
+  margin-left: clamp(20px, 5vw, 70px) !important;
+}
+html body #root .public-nav .landing-links button {
+  display: inline-flex !important;
+  min-height: 44px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 8px !important;
+  border: 0 !important;
+  color: #111 !important;
+  background: transparent !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .08em !important;
+  white-space: nowrap !important;
+}
+html body #root .public-nav .landing-links .nav-login {
+  min-width: 96px !important;
+  margin-left: auto !important;
+  padding: 0 15px !important;
+  color: #f3f1eb !important;
+  background: #111 !important;
+}
+html body #root .public-auth-page { min-height: calc(100svh - 76px) !important; }
+
+@media (max-width: 700px) {
+  html body #root .public-nav {
+    height: auto !important;
+    min-height: 108px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: space-between !important;
+    padding: 7px 14px 0 !important;
+  }
+  html body #root .public-nav .brand { align-self: flex-start !important; }
+  html body #root .public-nav .landing-links {
+    width: 100% !important;
+    gap: 4px !important;
+    justify-content: space-between !important;
+    margin-left: 0 !important;
+  }
+  html body #root .public-nav .landing-links button {
+    padding: 0 4px !important;
+    font-size: 10px !important;
+    letter-spacing: .02em !important;
+  }
+  html body #root .public-nav .landing-links .nav-login {
+    min-width: 70px !important;
+    padding: 0 8px !important;
+  }
+  html body #root .public-auth-page { min-height: calc(100svh - 108px) !important; }
+  html body #root .public-auth-page .auth-card { padding-top: 52px !important; }
+}
 .product-import-preview .product-primary { justify-self: start; }
 .product-import-costs { width: 100%; margin-top: 8px; border-top: 1px solid #171717; }
 .product-import-costs h3 { margin: 18px 0 7px; font-size: 22px; letter-spacing: -.04em; }
