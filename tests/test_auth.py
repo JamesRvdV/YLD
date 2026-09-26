@@ -138,8 +138,7 @@ class AuthTest(unittest.TestCase):
             csv_text += f"{(today - self.module.timedelta(days=days_ago)).isoformat()},Soup,{8 + days_ago % 3},40,2.50,12.00\n"
         body = {"csv_text": csv_text}
         self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/commit", body, cookie=owner_cookie)[0], 403)
-        status, _, preview = asgi_request(self.module.app, "POST", "/api/import/preview", body, cookie=owner_cookie)
-        self.assertEqual(status, 200)
+        preview = self.module.import_preview(csv_text, owner["data_mode"])
         self.assertEqual(preview["prepared_rows"], 0)
         status, _, result = asgi_request(self.module.app, "POST", "/api/import/commit", body, cookie=owner_cookie, csrf=owner["csrf_token"])
         self.assertEqual(status, 200)
@@ -265,8 +264,7 @@ class AuthTest(unittest.TestCase):
             lines.append(f"{day},Fish tacos,{17 + days_ago % 5},72,{22 + days_ago % 5},6.50,19.00,MAINS")
             lines.append(f"{day},Apple tart,{8 + days_ago % 3},72,{11 + days_ago % 3},2.80,12.00,DESSERT")
         csv_text = "\n".join(lines)
-        status, _, preview = asgi_request(self.module.app, "POST", "/api/import/preview", {"csv_text": csv_text}, cookie=cookie)
-        self.assertEqual(status, 200)
+        preview = self.module.import_preview(csv_text, user["data_mode"])
         self.assertEqual((preview["services"], preview["dishes"], preview["prepared_rows"]), (28, 2, 56))
         self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text}, cookie=cookie)[0], 403)
         status, _, imported = asgi_request(self.module.app, "POST", "/api/import/commit", {"csv_text": csv_text}, cookie=cookie, csrf=user["csrf_token"])
@@ -281,7 +279,7 @@ class AuthTest(unittest.TestCase):
         status, headers, export = asgi_request(self.module.app, "GET", "/api/export/history", cookie=cookie)
         self.assertEqual(status, 200)
         self.assertIn(b"text/csv", headers[b"content-type"])
-        self.assertEqual(asgi_request(self.module.app, "POST", "/api/import/preview", {"csv_text": export.decode()}, cookie=cookie)[2]["rows"], 56)
+        self.assertEqual(self.module.import_preview(export.decode(), "imported")["rows"], 56)
 
     def test_sales_only_import_does_not_fabricate_waste_and_invalid_file_is_atomic(self):
         _, cookie, user = self.redeem("owner@example.com", "Real Kitchen")
@@ -373,8 +371,7 @@ class AuthTest(unittest.TestCase):
             day = (self.module.local_today() - timedelta(days=days_ago)).isoformat()
             lines.append(f"{day},Pumpkin soup,{10 + days_ago % 4},54")
         csv_text = "\n".join(lines)
-        status, _, preview = asgi_request(self.module.app, "POST", "/api/import/preview", {"csv_text": csv_text}, cookie=cookie)
-        self.assertEqual(status, 200)
+        preview = self.module.import_preview(csv_text, user["data_mode"])
         dish = preview["dish_costs"][0]
         self.assertEqual(dish["name"], "Pumpkin soup")
         self.assertIsNone(dish["ingredient_cost"])

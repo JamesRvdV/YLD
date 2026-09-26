@@ -38,7 +38,7 @@ function FlowIcon({ name }: { name: FlowIconName }) {
   return <span className="how-flow-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square" strokeLinejoin="miter">{paths[name]}</svg></span>
 }
 
-function HowItWorks({nav,onWaitlist}:{nav:ReactNode;onWaitlist:()=>void}) {
+export function HowItWorks({nav,onWaitlist}:{nav:ReactNode;onWaitlist:()=>void}) {
   const steps = [
     { number: '01', phase: 'INPUT', icon: 'upload' as const, title: 'UPLOAD HISTORY', copy: 'Import a CSV of past services: dishes sold, covers, and optional prep and cost data.' },
     { number: '02', phase: 'DECISION', icon: 'plan' as const, title: 'GET PREP QUANTITIES', copy: 'YLD recommends how many portions of each dish to prepare for tomorrow, balancing expected demand and waste.' },

@@ -923,14 +923,13 @@ def rollback_model(user: dict = Depends(require_csrf)):
         raise HTTPException(409, "No active model to revert")
     return {"ok": True}
 
-@app.post("/api/import/preview")
-def preview_import(payload: SalesCsvInput, user: dict = Depends(current_user)):
-    dishes, rows, days = parse_sales_csv(payload.csv_text)
+def import_preview(csv_text: str, data_mode: str):
+    dishes, rows, days = parse_sales_csv(csv_text)
     counts = {key: 0 for key in dishes}
     for row in rows:
         counts[row["dish_key"]] += 1
     dish_services = sorted(({"name": dishes[key]["name"], "services": count} for key, count in counts.items()), key=lambda item: (-item["services"], item["name"]))
-    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "dish_costs": sorted(dishes.values(), key=lambda dish: dish["name"]), "dish_services": dish_services, "eligible_dishes": sum(item["services"] >= MIN_SERVICES for item in dish_services), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": user["data_mode"]}
+    return {"dishes": len(dishes), "services": len(days), "rows": len(rows), "prepared_rows": sum(row["prep_known"] for row in rows), "dish_names": sorted(dish["name"] for dish in dishes.values()), "dish_costs": sorted(dishes.values(), key=lambda dish: dish["name"]), "dish_services": dish_services, "eligible_dishes": sum(item["services"] >= MIN_SERVICES for item in dish_services), "first_day": min(days).isoformat(), "last_day": max(days).isoformat(), "replaces": data_mode}
 
 @app.post("/api/import/inspect")
 def inspect_spreadsheet(payload: SpreadsheetInput, user: dict = Depends(require_csrf)):
@@ -958,7 +957,7 @@ def normalize_spreadsheet(payload: MappedSpreadsheetInput, user: dict = Depends(
         csv_text = import_mapping.normalize(payload.filename, content, payload.mapping)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
-    preview = preview_import(SalesCsvInput(csv_text=csv_text), user)
+    preview = import_preview(csv_text, user["data_mode"])
     reader = csv.DictReader(io.StringIO(csv_text))
     return {"csv_text": csv_text, "preview": preview, "sample": [row for _, row in zip(range(5), reader)]}
 
@@ -1030,13 +1029,6 @@ def update_dish_costs(dish_id: str, payload: DishCostsInput, user: dict = Depend
         if result.rowcount == 0:
             raise HTTPException(404, "Dish not found")
     return {"ok": True}
-
-@app.get("/api/services/{service_day}/summary")
-def get_service_summary(service_day: date, user: dict = Depends(current_user)):
-    if service_day > local_today():
-        raise HTTPException(400, "Service date cannot be in the future")
-    with db() as conn:
-        return service_summary(conn, user["workspace_id"], service_day)
 
 @app.post("/api/actuals")
 def save_actual(payload: ActualInput, user: dict = Depends(require_csrf)):

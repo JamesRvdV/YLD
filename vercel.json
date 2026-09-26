@@ -3,8 +3,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://yld.nz/api/:path*" },
-    { "source": "/how-it-works", "destination": "/index.html" },
-    { "source": "/pricing", "destination": "/index.html" },
     { "source": "/login", "destination": "/index.html" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },

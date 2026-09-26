@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 export type LegalPage = 'privacy' | 'terms' | 'cookies' | 'billing'
 
-export const legalLinks: { path: string; label: string }[] = [
+const legalLinks: { path: string; label: string }[] = [
   { path: '/privacy', label: 'Privacy' },
   { path: '/terms', label: 'Terms' },
   { path: '/cookies', label: 'Cookies' },
@@ -63,8 +63,8 @@ const pages: Record<LegalPage, { title: string; intro: string; content: ReactNod
   },
 }
 
-export function LegalFooter({ className = '' }: { className?: string }) {
-  return <footer className={`legal-footer ${className}`}><span>YLD. / CHRISTCHURCH, NZ</span><nav aria-label="Legal information">{legalLinks.map(link => <a key={link.path} href={link.path}>{link.label}</a>)}</nav><a href="/">Home</a></footer>
+export function LegalFooter() {
+  return <footer className="legal-footer"><span>YLD. / CHRISTCHURCH, NZ</span><nav aria-label="Legal information">{legalLinks.map(link => <a key={link.path} href={link.path}>{link.label}</a>)}</nav><a href="/">Home</a></footer>
 }
 
 export default function LegalPage({ page, nav }: { page: LegalPage; nav: ReactNode }) {
