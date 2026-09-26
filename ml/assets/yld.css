@@ -1,0 +1,42 @@
+:root { --paper: #e8e7e2; --ink: #111; --accent: #ff6538; }
+.stApp { background: var(--paper); color: var(--ink); }
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] { font-family: 'Franklin Gothic Medium', 'Franklin Gothic', Arial, sans-serif; }
+[data-testid="stHeader"] { background: transparent; }
+.block-container { max-width: 1440px; padding: 2.5rem 3.5rem 3rem; }
+[data-testid="stSidebar"] { background: #deddd7; border-right: 1px solid #111; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 2rem; }
+.yld-nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid #111; }
+.yld-logo { font-family: 'Franklin Gothic Medium', Arial, sans-serif; font-size: 48px; font-weight: 900; line-height: 1; letter-spacing: -4px; }
+.yld-logo span { color: #ff6538; }
+.yld-nav-label, .yld-eyebrow, .yld-section, .yld-footer, .yld-status { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.yld-nav-label { display: flex; align-items: center; gap: 10px; }
+.yld-dot { display: inline-block; height: 7px; width: 7px; background: #ff6538; }
+.yld-hero { padding: 36px 0 28px; }
+.yld-eyebrow { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 34px; }
+.yld-hero h1 { font-family: 'Franklin Gothic Medium', Arial, sans-serif; font-size: clamp(48px, 7vw, 110px); font-weight: 900; letter-spacing: -.075em; line-height: .91; padding: 0; margin: 0 0 24px; color: #111; }
+.yld-hero p { max-width: 550px; font-size: 16px; line-height: 1.55; margin: 0; color: #42423d; }
+.yld-section { padding: 20px 0 12px; border-top: 1px solid #111; margin-top: 12px; }
+.yld-sidebar-title { margin: 14px 0 22px; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.yld-status { border: 1px solid #aaa99f; padding: 14px 16px; margin: 10px 0; line-height: 1.6; }
+.yld-empty { margin-top: 24px; padding: 34px; background: #111; color: #e8e7e2; }
+.yld-empty h2 { color: #e8e7e2; font-size: clamp(28px, 4vw, 48px); font-weight: 900; letter-spacing: -.045em; margin: 0 0 14px; padding: 0; }
+.yld-empty p { color: #bdbdb5; max-width: 560px; line-height: 1.6; }
+.yld-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 34px; }
+.yld-step { border-top: 1px solid #66665e; padding-top: 14px; }
+.yld-step b { color: #ff6538; font-size: 12px; }
+.yld-step h3 { color: #e8e7e2; font-size: 13px; letter-spacing: .06em; padding: 12px 0 6px; }
+.yld-step p { font-size: 12px; }
+.yld-footer { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid #111; margin-top: 44px; padding-top: 18px; color: #55554f; }
+[data-testid="stWidgetLabel"] p { font-weight: 700; font-size: 12px; }
+[data-testid="stNumberInput"] > div, [data-testid="stTextInput"] > div, [data-baseweb="select"] > div { border-radius: 0 !important; border-color: #aaa99f !important; background: #f3f2ed !important; color: #111 !important; }
+[data-testid="stFileUploaderDropzone"] { border-radius: 0; border: 1px dashed #92928a; background: transparent; }
+.stButton button, .stDownloadButton button { border-radius: 0; min-height: 48px; font-weight: 700; letter-spacing: .035em; }
+.stButton button[kind="primary"] { background: #111; color: #f7f6f1; border: 1px solid #111; }
+.stButton button[kind="primary"]:hover { background: #ff6538; border-color: #ff6538; color: #111; }
+.stDownloadButton button { background: transparent; color: #111; border: 1px solid #111; }
+[data-testid="stMetric"] { min-height: 142px; border-top: 3px solid #ff6538; border-bottom: 1px solid #111; padding: 20px 0; }
+[data-testid="stMetricValue"] { font-weight: 800; letter-spacing: -.055em; font-size: clamp(27px, 3.5vw, 46px); }
+[data-testid="stMetricLabel"] { text-transform: uppercase; font-size: 10px; letter-spacing: .06em; }
+[data-testid="stExpander"] { border-radius: 0; border-color: #aaa99f; }
+h2, h3 { color: #111; letter-spacing: -.035em; }
+@media(max-width: 760px) { .block-container { padding: 2rem 1.2rem; } .yld-nav-label, .yld-eyebrow { font-size: 9px; } .yld-hero { padding-top: 26px; } .yld-empty { padding: 24px; } .yld-steps { grid-template-columns: 1fr; gap: 14px; } .yld-footer { flex-direction: column; gap: 8px; } }
