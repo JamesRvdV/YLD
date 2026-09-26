@@ -7,17 +7,16 @@ A runnable restaurant-level MVP: forecast food sold, optimise preparation with a
 ## Open and run on Windows
 
 1. Open this folder in VS Code using **File → Open Folder**, or open `restaurant-inventory-ai.code-workspace`.
-2. Install the Microsoft **Python** extension if it is not already installed.
+2. Install Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/getting-started/installation/), and the Microsoft **Python** extension if it is not already installed.
 3. Open **Terminal → New Terminal** and run these commands from this project folder:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m scripts.run_backtest --restaurant 10
-.\.venv\Scripts\python.exe -m streamlit run app.py
+uv sync --locked
+uv run --locked python -m scripts.run_backtest --restaurant 10
+uv run --locked streamlit run app.py
 ```
 
-Using the environment's Python directly avoids PowerShell activation-policy problems. If `python` is unavailable, install Python 3.11 or newer and restart VS Code. This project was checked with Python 3.13.
+uv manages the `.venv` environment without PowerShell activation. This project was checked with Python 3.13.
 
 4. Choose **Python: Select Interpreter** in VS Code's command palette and select `.venv`.
 5. Open the local address printed by Streamlit. Use **Run historical analysis** in the dashboard. Stop the server with Ctrl+C.
@@ -25,23 +24,23 @@ Using the environment's Python directly avoids PowerShell activation-policy prob
 The original GitHub CSV is included. To fetch it again:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.download_data
+uv run --locked python -m scripts.download_data
 ```
 
 ## Commands
 
 ```powershell
 # Single restaurant, explicit financial assumptions
-.\.venv\Scripts\python.exe -m scripts.run_backtest --restaurant 10 --food-cost 8.5 --margin 14
+uv run --locked python -m scripts.run_backtest --restaurant 10 --food-cost 8.5 --margin 14
 
 # All restaurants, shared model with restaurant identity (takes longer)
-.\.venv\Scripts\python.exe -m scripts.run_backtest --output outputs/all_restaurants
+uv run --locked python -m scripts.run_backtest --output outputs/all_restaurants
 
 # Tests, including a real dashboard run
-.\.venv\Scripts\python.exe -m pytest -q
+uv run --locked python -m pytest -q
 
 # Optional full-history model export; not a historical evaluation model
-.\.venv\Scripts\python.exe -m scripts.train
+uv run --locked python -m scripts.train
 ```
 
 `--margin` means contribution margin per kilogram, not sale price. All monetary figures use the same assumed currency; the dashboard's currency label performs no conversion.

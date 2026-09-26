@@ -4,10 +4,11 @@ Invite-only restaurant prep planner built with Vite, React and FastAPI. Each new
 
 ## Local setup
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Node.js 22, then run:
+
 ```bash
 npm install
-python3 -m venv .venv
-.venv/bin/pip install -r api/requirements.txt
+uv sync --locked
 cp .env.example .env
 ```
 
@@ -22,7 +23,7 @@ set +a
 Start the API:
 
 ```bash
-.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8817
+uv run --locked uvicorn api.main:app --host 127.0.0.1 --port 8817
 ```
 
 In another shell, start Vite:
@@ -38,7 +39,7 @@ Vite proxies `/api` to FastAPI. `YLD_PUBLIC_URL` must match the browser origin V
 On the trusted server shell, create a one-use setup link for the only admin account:
 
 ```bash
-.venv/bin/python -m api.invite --email axel.mckenna7@gmail.com --workspace 'Admin Kitchen'
+uv run --locked python -m api.invite --email axel.mckenna7@gmail.com --workspace 'Admin Kitchen'
 ```
 
 Open the printed link privately, set a password of at least 12 characters, then sign in at `/login`. This command prints a link only for the designated admin address; it sends no email. The printed link is a secret and works once for 48 hours. Sessions last seven days.
@@ -92,5 +93,5 @@ Checkout, the customer portal, and webhook processing are restricted to test key
 
 ```bash
 npm run build
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 uv run --locked python -m unittest discover -s tests -v
 ```

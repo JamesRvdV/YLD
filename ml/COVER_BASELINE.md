@@ -69,11 +69,11 @@ not a measured improvement for other kitchens or YLD's existing planner.
 ## Higher-capacity model
 
 To compare three tree ensembles with the ridge baseline and train the selected
-model:
+model, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+use Python 3.11 or 3.12:
 
 ```bash
-.venv/bin/pip install -r ml/cover-requirements.txt
-.venv/bin/python ml/compare_cover_models.py
+uv run --project ml/cover --locked python ml/compare_cover_models.py
 ```
 
 The script uses the first 70% of services for model fitting, the next 10% for
@@ -96,7 +96,7 @@ also needs substantially more than YLD's current 14-service minimum to train
 per workspace.
 
 To forecast with the saved model, load the artifact using the pinned
-scikit-learn version in `ml/cover-requirements.txt`:
+scikit-learn version in `ml/cover/pyproject.toml` and `ml/cover/uv.lock`:
 
 ```python
 import joblib
