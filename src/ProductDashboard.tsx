@@ -66,7 +66,7 @@ const localDate = () => {
 }
 const longDate = (value: string) => new Date(value + 'T12:00:00').toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' })
 export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user: SessionUser; onSignOut: () => void; onAuthLost: () => void }) {
-  const [view, setView] = useState<View>(user.data_mode === 'empty' ? 'import' : 'plan')
+  const [view, setView] = useState<View>('import')
   const [hasData, setHasData] = useState(user.data_mode === 'imported')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [covers, setCovers] = useState('82')
@@ -327,7 +327,7 @@ export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user
 
   return <div className="product-shell">
     <header className="product-header">
-      <button className="product-brand" onClick={() => setView('plan')} aria-label="YLD plan">YLD<span>.</span></button>
+      <button className="product-brand" onClick={() => setView('import')} aria-label="YLD Agent">YLD<span>.</span></button>
       <nav className="product-nav" aria-label="Planner navigation">
         <button className={view === 'import' ? 'active' : ''} aria-current={view === 'import' ? 'page' : undefined} onClick={() => { setView('import'); setError(''); setNotice('') }}>YLD AGENT</button>
       </nav>
