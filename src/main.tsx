@@ -141,7 +141,7 @@ function App() {
   if (screen === 'admin') return user?.is_admin ? <><AdminPage user={user} onBack={() => go('dashboard')} /><LegalFooter /></> : <><Login onBack={() => go('landing')} onOpen={() => go('dashboard')} onSignedIn={found => { setUser(found); go('dashboard') }} user={user} /><LegalFooter /></>
   if (screen === 'privacy' || screen === 'terms' || screen === 'cookies' || screen === 'billing') return publicPage(<LegalPage page={screen} nav={publicNav} />)
   if (!user) return <><Login onBack={() => go('landing')} onOpen={() => go('dashboard')} onSignedIn={found => { setUser(found); go('dashboard') }} user={null} /><LegalFooter /></>
-  return <ProductDashboard user={user} onAdmin={() => go('admin')} onSignOut={() => void signOut()} onAuthLost={() => { setUser(null); window.history.replaceState({}, '', '/login'); setScreen('login') }} />
+  return <ProductDashboard user={user} onSignOut={() => void signOut()} onAuthLost={() => { setUser(null); window.history.replaceState({}, '', '/login'); setScreen('login') }} />
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)

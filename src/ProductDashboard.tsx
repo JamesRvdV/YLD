@@ -65,7 +65,7 @@ const localDate = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 const longDate = (value: string) => new Date(value + 'T12:00:00').toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' })
-export default function ProductDashboard({ user, onSignOut, onAuthLost, onAdmin }: { user: SessionUser; onSignOut: () => void; onAuthLost: () => void; onAdmin: () => void }) {
+export default function ProductDashboard({ user, onSignOut, onAuthLost }: { user: SessionUser; onSignOut: () => void; onAuthLost: () => void }) {
   const [view, setView] = useState<View>(user.data_mode === 'empty' ? 'import' : 'plan')
   const [hasData, setHasData] = useState(user.data_mode === 'imported')
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -329,8 +329,7 @@ export default function ProductDashboard({ user, onSignOut, onAuthLost, onAdmin 
     <header className="product-header">
       <button className="product-brand" onClick={() => setView('plan')} aria-label="YLD plan">YLD<span>.</span></button>
       <nav className="product-nav" aria-label="Planner navigation">
-        {(hasData ? ['plan', 'history', 'costs', 'import'] as const : ['import'] as const).map(item => <button key={item} className={view === item ? 'active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => { setView(item); setError(''); setNotice('') }}>{item === 'costs' ? 'MENU COSTS' : item === 'import' ? 'YLD AGENT' : item.toUpperCase()}</button>)}
-        {user.is_admin && <button onClick={onAdmin}>ADMIN</button>}
+        <button className={view === 'import' ? 'active' : ''} aria-current={view === 'import' ? 'page' : undefined} onClick={() => { setView('import'); setError(''); setNotice('') }}>YLD AGENT</button>
       </nav>
       <button className="product-signout" onClick={onSignOut}>SIGN OUT ↗</button>
     </header>
