@@ -23,14 +23,14 @@ the processed file's SHA-256 is stored in the model artifact.
 
 ## Train and use
 
-From the repository root, with Python 3.9 or newer:
+From the repository root, with uv and Python 3.11 or 3.12:
 
 ```bash
-python3 ml/cover_baseline.py
+uv run --project ml/cover --locked python ml/cover_baseline.py
 ```
 
-This writes [cover_baseline.json](cover_baseline.json). No third-party Python
-packages or network access are required. To use another CSV with the same columns,
+This writes [cover_baseline.json](cover_baseline.json). The ridge script itself
+uses only the Python standard library. To use another CSV with the same columns,
 pass `--data path/to/file.csv --output path/to/model.json`.
 
 For a next-day forecast on the source restaurant:

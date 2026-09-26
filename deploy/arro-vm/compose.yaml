@@ -2,7 +2,7 @@ name: yld
 
 services:
   api:
-    image: yld:release-20260926-2
+    image: yld:email-uv-8131a84
     container_name: yld-api
     restart: unless-stopped
     user: "10001:10001"
